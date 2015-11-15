@@ -1,24 +1,28 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
+	"sync"
 	"time"
 )
 
-type ipEntry struct {
+var errInvalidGenerator = errors.New("invalid generator name")
+
+type ipentry struct {
 	ip  net.IP
 	err error
 }
 
-type ipCache map[string]ipEntry
+type ipcache map[string]ipentry
 
-func makeIPCache() ipCache {
-	return make(map[string]ipEntry)
+func makeIPCache() ipcache {
+	return make(map[string]ipentry)
 }
 
-func (c ipCache) lookup(host string) (net.IP, error) {
+func (c ipcache) lookup(host string) (net.IP, error) {
 	if res, ok := c[host]; ok {
 		return res.ip, res.err
 	}
@@ -27,10 +31,11 @@ func (c ipCache) lookup(host string) (net.IP, error) {
 	if err == nil {
 		ip = iplist[0]
 	}
-	c[host] = ipEntry{ip, err}
+	c[host] = ipentry{ip, err}
 	return ip, err
 }
 
+// TODO: should have a type like "A" or "CNAME" (already validated?)
 type rawentry struct {
 	source, target string
 }
@@ -102,23 +107,43 @@ func (d *dategen) generate() rawentry {
 	return <-d.ch
 }
 
-func main() {
-	var gen generator
+func makeGenerator(name string, cfg config) (generator, error) {
+	switch name { // strings.Lower
+	case "date":
+		g := newDategen()
+		go g.run()
+		return g, nil
+	case "static":
+		g := newStaticgen()
+		go g.run()
+		return g, nil
+	default:
+		return nil, errInvalidGenerator
+	}
+}
 
-	repo := makeRepository()
+type sources struct {
+	repo repository
+	mux  sync.RWMutex
+	// Sources added or refreshed (TODO: Add needs params)
+	in chan *source
+	// Sources to be removed
+	rm chan string
+}
+
+func newSources() *sources {
+	return &sources{
+		repo: makeRepository(),
+		in:   make(chan *source), // TODO: this will be buffered
+		rm:   make(chan string),
+	}
+}
+
+func (s *sources) updateSource(src *source, repo repository) error {
 	cache := makeIPCache()
 
-	// sgen := newStaticgen()
-	// go sgen.run()
-	// gen = sgen
-	dgen := newDategen()
-	go dgen.run()
-	gen = dgen
-
-	src := newSource("static")
-
 	for {
-		rentry := gen.generate()
+		rentry := src.gen.generate()
 		if rentry.isEmpty() {
 			break
 		}
@@ -126,24 +151,63 @@ func main() {
 		// TODO: Lookups are slow: make it so that N can be fired at the same time
 		res, err := cache.lookup(rentry.target)
 		if err != nil {
-			fmt.Printf("%s: %s\n", rentry.source, err)
+			// TODO: where does this go? logging?
+			fmt.Printf("failed to lookup %s: %s\n", rentry.source, err)
 			continue
 		}
 		repo.add(rentry.source, makeRecord(rentry.source, rentry.target, res, src))
 	}
-
-	fmt.Printf("%s\n", repo.clone())
-	os.Exit(1)
+	return nil
 }
 
-// Update source:
-// 1. get RWLock(), repo.clone(), unlock;
-// 2. repo.deleteSource(src)
-// 3. loop with generator
-// 4. get RWLock(), repo swap, unlock;
+func (s *sources) run() {
+	for {
+		select {
+		case src := <-s.in:
+			// Clone the repo
+			s.mux.RLock()
+			repo := s.repo.clone()
+			s.mux.RUnlock()
 
-// All operations are queued (buffered chan and try-send
+			// Update the cloned repo
+			s.updateSource(src, repo)
 
-// A routine performs queued operations
+			// Swap with the updated version
+			s.mux.Lock()
+			s.repo = repo
+			s.mux.Unlock()
+		case name := <-s.rm:
+			fmt.Printf("RM %s\n", name)
+		}
+	}
+}
 
-// A many routines handle DNS queries with RLock()
+// TODO: Routine that handles DNS queries with RLock()
+
+// In POST /sources/add
+//   name=XXX
+//   key=value config in cfg
+func (s *sources) handleAddSource(name, gentype string, cfg config) error {
+	src := newSource(name)
+	gen, err := makeGenerator(gentype, cfg)
+	if err != nil {
+		return fmt.Errorf("cannot start generator: %s", err)
+	}
+	src.gen = gen
+
+	// TODO: Try send, don't wait if queue full, return err
+	s.in <- src
+	return nil
+}
+
+func main() {
+	srcs := newSources()
+	go srcs.run()
+
+	srcs.handleAddSource("static", "date", makeConfig())
+
+	// TODO: Http handler loop
+	time.Sleep(1 * time.Second)
+	fmt.Printf("%s\n", srcs.repo)
+	os.Exit(1)
+}

@@ -9,10 +9,13 @@ import (
 
 type source struct {
 	name string
+	gen  generator
 }
 
 func newSource(name string) *source {
-	return &source{name}
+	return &source{
+		name: name,
+	}
 }
 
 func (s source) String() string {
@@ -25,6 +28,7 @@ type record struct {
 	source *source
 }
 
+// TODO: Can make different kinds of records (e.g. CNAME)?
 func makeRecord(shost, dhost string, ip net.IP, src *source) record {
 	return record{
 		host: dhost,
