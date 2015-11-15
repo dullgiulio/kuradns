@@ -3,10 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
+
+	"github.com/miekg/dns"
 )
 
 var errInvalidGenerator = errors.New("invalid generator name")
@@ -99,7 +101,8 @@ func newDategen() *dategen {
 }
 
 func (d *dategen) run() {
-	d.ch <- makeRawentry(fmt.Sprintf("%s.%s", d.date, "mydomain.test"), "127.0.0.1")
+	fmt.Printf("%s.%s\n", d.date, "mydomain.test.") // TODO: For testing only...
+	d.ch <- makeRawentry(fmt.Sprintf("%s.%s", d.date, "mydomain.test."), "127.0.0.1")
 	close(d.ch)
 }
 
@@ -183,6 +186,37 @@ func (s *sources) run() {
 }
 
 // TODO: Routine that handles DNS queries with RLock()
+func (s *sources) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+
+	// TODO: Keep a sync.Pool of Msg, both answers and NXDOMAIN.
+	m := new(dns.Msg)
+	m.SetReply(r)
+	rec := s.repo.get(r.Question[0].Name)
+	if rec == nil {
+		m.MsgHdr.Rcode = dns.RcodeNameError
+	} else {
+		m.Answer = append(m.Answer, &rec.arec)
+	}
+	w.WriteMsg(m)
+}
+
+func (s *sources) serveNetDNS(addr, net string, errCh chan<- error) {
+	serverTCP := &dns.Server{Addr: addr, Net: net, TsigSecret: nil}
+	errCh <- serverTCP.ListenAndServe()
+}
+
+func (s *sources) serveDNS(addr string) {
+	errCh := make(chan error)
+
+	go s.serveNetDNS(addr, "udp", errCh)
+	go s.serveNetDNS(addr, "tcp", errCh)
+
+	if err := <-errCh; err != nil {
+		log.Fatal("Cannot start DNS server: ", err)
+	}
+}
 
 // In POST /sources/add
 //   name=XXX
@@ -206,8 +240,8 @@ func main() {
 
 	srcs.handleAddSource("static", "date", makeConfig())
 
+	dns.HandleFunc(".", srcs.handleQuery) // TODO: Define zone
+	/* go */ srcs.serveDNS(":8053")
+
 	// TODO: Http handler loop
-	time.Sleep(1 * time.Second)
-	fmt.Printf("%s\n", srcs.repo)
-	os.Exit(1)
 }

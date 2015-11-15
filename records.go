@@ -34,7 +34,7 @@ func makeRecord(shost, dhost string, ip net.IP, src *source) record {
 		host: dhost,
 		arec: dns.A{
 			Hdr: dns.RR_Header{
-				Name:   fmt.Sprintf("%s.", shost), // TODO: Make more robust
+				Name:   shost,
 				Rrtype: dns.TypeA,
 				Class:  dns.ClassINET,
 				Ttl:    6400, // TODO: Make configurable
@@ -53,7 +53,7 @@ type records struct {
 	recs []record
 }
 
-func makeRecords() *records {
+func newRecords() *records {
 	return &records{recs: make([]record, 0)}
 }
 
@@ -94,7 +94,7 @@ func makeRepository() repository {
 func (r repository) add(host string, rec record) {
 	recs, ok := r[host]
 	if !ok {
-		recs = makeRecords()
+		recs = newRecords()
 	}
 	recs.pushFront(rec)
 	r[host] = recs
@@ -104,6 +104,14 @@ func (r repository) deleteSource(s *source) {
 	for _, recs := range r {
 		recs.deleteSource(s)
 	}
+}
+
+func (r repository) get(key string) *record {
+	rs, ok := r[key]
+	if !ok {
+		return nil
+	}
+	return &rs.recs[0]
 }
 
 func (r repository) clone() repository {
