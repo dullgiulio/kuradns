@@ -7,28 +7,12 @@ import (
 	"github.com/miekg/dns"
 )
 
-type source struct {
-	name string
-	gen  generator
-}
-
-func newSource(name string) *source {
-	return &source{
-		name: name,
-	}
-}
-
-func (s source) String() string {
-	return s.name
-}
-
 type record struct {
 	host   string
 	arec   dns.A
 	source *source
 }
 
-// TODO: Can make different kinds of records (e.g. CNAME)?
 func makeRecord(shost, dhost string, ip net.IP, src *source) record {
 	return record{
 		host: dhost,
