@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 
 	"github.com/miekg/dns"
@@ -87,6 +88,28 @@ func (r repository) add(host string, rec record) {
 func (r repository) deleteSource(s *source) {
 	for _, recs := range r {
 		recs.deleteSource(s)
+	}
+}
+
+func (r repository) updateSource(src *source, debug bool) {
+	cache := makeIPCache()
+
+	for {
+		rentry := src.gen.Generate()
+		if rentry.IsEmpty() {
+			break
+		}
+
+		// TODO: Lookups are slow: make it so that N can be fired at the same time
+		res, err := cache.lookup(rentry.Target)
+		if err != nil {
+			log.Print("failed to lookup %s: %s\n", rentry.Source, err)
+			continue
+		}
+		r.add(rentry.Source, makeRecord(rentry.Source, rentry.Target, res, src))
+		if debug {
+			log.Printf("ADD: %s -> %s [%s]\n", rentry.Source, rentry.Target, res)
+		}
 	}
 }
 

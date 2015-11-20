@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -11,73 +12,175 @@ import (
 	"github.com/miekg/dns"
 )
 
+type reqtype int
+
+const (
+	reqtypeAdd reqtype = iota
+	reqtypeRem
+	reqtypeUp
+)
+
+var (
+	errQueueFull      = errors.New("queue full")
+	errUnknownReqType = errors.New("unknown request type")
+)
+
+type response error
+
+type request struct {
+	resp  chan response
+	src   *source
+	rtype reqtype
+}
+
+func makeRequest(src *source, t reqtype) request {
+	return request{
+		src:   src,
+		resp:  make(chan response),
+		rtype: t,
+	}
+}
+
+func (r request) done() {
+	close(r.resp)
+}
+
+func (r request) fail(err error) {
+	r.resp <- err
+}
+
+func (r request) send(ch chan<- request) error {
+	select {
+	case ch <- r:
+		return nil
+	default:
+		return errQueueFull
+	}
+}
+
+func (r request) String() string {
+	op := "unk"
+	switch r.rtype {
+	case reqtypeAdd:
+		op = "add"
+	case reqtypeRem:
+		op = "rem"
+	case reqtypeUp:
+		op = "update"
+	}
+	return fmt.Sprintf("[add %s]", op, r.src.name)
+}
+
 type server struct {
 	debug bool
-	repo  repository
-	mux   sync.RWMutex
-	// Sources added or refreshed (TODO: Add needs params)
-	in chan *source
-	// Sources to be removed
-	rm chan string
+	// sources of requests status
+	srcsReq sources
+	// sources of satisfied status
+	srcs      sources
+	repo      repository
+	mux       sync.RWMutex
+	requests  chan request
+	processes chan request
 }
 
 func newServer(debug bool) *server {
 	s := &server{
-		debug: debug,
-		repo:  makeRepository(),
-		in:    make(chan *source), // TODO: this will be buffered
-		rm:    make(chan string),
+		debug:     debug,
+		requests:  make(chan request),
+		processes: make(chan request, 10), // TODO: buffering is a param
+		repo:      makeRepository(),
+		srcsReq:   makeSources(),
+		srcs:      makeSources(),
 	}
 	dns.HandleFunc(".", s.handleQuery) // TODO: Define zone
 	return s
 }
 
-func (s *server) updateSource(src *source, repo repository) error {
-	cache := makeIPCache()
-
-	for {
-		rentry := src.gen.Generate()
-		if rentry.IsEmpty() {
-			break
-		}
-
-		// TODO: Lookups are slow: make it so that N can be fired at the same time
-		res, err := cache.lookup(rentry.Target)
-		if err != nil {
-			log.Print("failed to lookup %s: %s\n", rentry.Source, err)
-			continue
-		}
-		repo.add(rentry.Source, makeRecord(rentry.Source, rentry.Target, res, src))
-		if s.debug {
-			log.Printf("ADD: %s -> %s [%s]\n", rentry.Source, rentry.Target, res)
-		}
-	}
-	return nil
+func (s *server) cloneRepo() repository {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	return s.repo.clone()
 }
 
-func (s *server) run() {
-	for {
-		select {
-		case src := <-s.in:
-			// Clone the repo
-			s.mux.RLock()
-			repo := s.repo.clone()
-			s.mux.RUnlock()
+func (s *server) setRepo(repo repository) {
+	s.mux.Lock()
+	s.repo = repo
+	s.mux.Unlock()
+}
 
-			// Update the cloned repo
-			s.updateSource(src, repo)
-
-			// Swap with the updated version
-			s.mux.Lock()
-			s.repo = repo
-			s.mux.Unlock()
-		case name := <-s.rm:
-			fmt.Printf("RM %s\n", name) // TODO: Remove source
+func (s *server) runWorker() {
+	for req := range s.processes {
+		repo := s.cloneRepo()
+		switch req.rtype {
+		case reqtypeAdd:
+			if s.srcs.has(req.src.name) {
+				continue
+			}
+			repo.updateSource(req.src, s.debug)
+			s.setRepo(repo)
+			s.srcs[req.src.name] = req.src
+		case reqtypeRem:
+			if !s.srcs.has(req.src.name) {
+				continue
+			}
+			repo.deleteSource(req.src)
+			s.setRepo(repo)
+			delete(s.srcs, req.src.name)
+		case reqtypeUp:
+			if !s.srcs.has(req.src.name) {
+				continue
+			}
+			repo.deleteSource(req.src)
+			repo.updateSource(req.src, s.debug)
+			s.setRepo(repo)
+			s.srcs[req.src.name] = req.src
 		}
 	}
 }
 
-// TODO: Routine that handles DNS queries with RLock()
+func (s *server) runHandler() {
+	for req := range s.requests {
+		switch req.rtype {
+		case reqtypeAdd:
+			if s.srcsReq.has(req.src.name) {
+				req.fail(fmt.Errorf("source %s already exists", req.String()))
+				continue
+			}
+			if err := req.send(s.processes); err != nil {
+				req.fail(fmt.Errorf("cannot process %s: %s", req.String(), err))
+				continue
+			}
+			s.srcsReq[req.src.name] = req.src
+		case reqtypeRem:
+			if !s.srcsReq.has(req.src.name) {
+				req.fail(fmt.Errorf("source %s not found", req.String()))
+				continue
+			}
+			if err := req.send(s.processes); err != nil {
+				req.fail(fmt.Errorf("cannot process %s: %s", req.String(), err))
+				continue
+			}
+			delete(s.srcsReq, req.src.name)
+		case reqtypeUp:
+			if !s.srcsReq.has(req.src.name) {
+				req.fail(fmt.Errorf("source %s not found", req.String()))
+				continue
+			}
+			if err := req.send(s.processes); err != nil {
+				req.fail(fmt.Errorf("cannot process %s: %s", req.String(), err))
+			}
+		default:
+			req.fail(errUnknownReqType)
+		}
+		req.done()
+	}
+}
+
+func (s *server) start() {
+	go s.runHandler()
+	go s.runWorker()
+}
+
 func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
@@ -121,7 +224,13 @@ func (s *server) handleAddSource(name, gentype string, conf cfg.Config) error {
 	}
 	src.gen = gen
 
+	req := makeRequest(src, reqtypeAdd)
+
 	// TODO: Try send, don't wait if queue full, return err
-	s.in <- src
+	s.requests <- req
+	err = <-req.resp
+	if err != nil {
+		log.Print("cannot add source: ", err)
+	}
 	return nil
 }

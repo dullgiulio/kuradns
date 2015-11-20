@@ -6,7 +6,7 @@ import (
 
 func main() {
 	srv := newServer(true)
-	go srv.run()
+	srv.start()
 
 	// TODO: Will be called by HTTP handler.
 	srv.handleAddSource("static", "date", cfg.MakeConfig())

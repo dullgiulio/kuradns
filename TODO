@@ -1,10 +1,2 @@
-* Providers
-  - DB (connection string, two fields query)
-  - hosts (filename)
-* Source
-  - Provider 0 ... Provider N
-  - Strategy: { Override, Keep }
-* Web interface:
-  - Create provider by key
-  - Remove provider by key
-  - Reload/refresh provider (first call inserts)
+To listen on standard DNS port 53, use:
+# setcap 'cap_net_bind_service=+ep' kuradns
