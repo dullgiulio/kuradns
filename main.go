@@ -17,7 +17,7 @@ func main() {
 	// TODO: Will be called by HTTP handler.
 	srv.handleSourceAdd("static", "date", cfg.MakeConfig())
 
-	go srv.serveDNS(dnsListen)
+	go srv.serveDNS(dnsListen, ".") // TODO: define zone?
 
 	log.Fatal(http.ListenAndServe(httpListen, srv))
 }
