@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/dullgiulio/kuradns/cfg"
@@ -16,7 +19,7 @@ type reqtype int
 
 const (
 	reqtypeAdd reqtype = iota
-	reqtypeRem
+	reqtypeDel
 	reqtypeUp
 )
 
@@ -63,7 +66,7 @@ func (r request) String() string {
 	switch r.rtype {
 	case reqtypeAdd:
 		op = "add"
-	case reqtypeRem:
+	case reqtypeDel:
 		op = "rem"
 	case reqtypeUp:
 		op = "update"
@@ -119,7 +122,7 @@ func (s *server) runWorker() {
 			repo.updateSource(req.src, s.debug)
 			s.setRepo(repo)
 			s.srcs[req.src.name] = req.src
-		case reqtypeRem:
+		case reqtypeDel:
 			if !s.srcs.has(req.src.name) {
 				continue
 			}
@@ -151,7 +154,7 @@ func (s *server) runHandler() {
 				continue
 			}
 			s.srcsReq[req.src.name] = req.src
-		case reqtypeRem:
+		case reqtypeDel:
 			if !s.srcsReq.has(req.src.name) {
 				req.fail(fmt.Errorf("source %s not found", req.String()))
 				continue
@@ -213,24 +216,86 @@ func (s *server) serveDNS(addr string) {
 	}
 }
 
-// In POST /server/add
-//   name=XXX
-//   key=value config in cfg
-func (s *server) handleAddSource(name, gentype string, conf cfg.Config) error {
+func (s *server) handleSourceAdd(name, gentype string, conf cfg.Config) {
 	src := newSource(name)
 	gen, err := gen.MakeGenerator(gentype, conf)
 	if err != nil {
-		return fmt.Errorf("cannot start generator: %s", err)
+		log.Printf("cannot start generator: %s", err)
+		return
 	}
 	src.gen = gen
 
 	req := makeRequest(src, reqtypeAdd)
 
-	// TODO: Try send, don't wait if queue full, return err
 	s.requests <- req
 	err = <-req.resp
 	if err != nil {
 		log.Print("cannot add source: ", err)
 	}
+}
+
+func (s *server) handleSourceDelete(name string) {
+	src := newSource(name)
+	req := makeRequest(src, reqtypeDel)
+
+	s.requests <- req
+	err := <-req.resp
+	if err != nil {
+		log.Print("cannot remove source: ", err)
+	}
+}
+
+func (s *server) handleSourceUpdate(name string) {
+	src := newSource(name)
+	req := makeRequest(src, reqtypeUp)
+
+	s.requests <- req
+	err := <-req.resp
+	if err != nil {
+		log.Print("cannot update source: ", err)
+	}
+}
+
+// take last value in case of duplicates
+func (s *server) configFromForm(form url.Values) cfg.Config {
+	cf := cfg.MakeConfig()
+	for k, vs := range form {
+		if strings.HasPrefix(k, "conf.") {
+			cf[k[5:]] = vs[len(vs)-1]
+		}
+	}
+	return cf
+}
+
+func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
+	if err := r.ParseForm(); err != nil {
+		return err
+	}
+	conf := s.configFromForm(r.Form)
+	switch r.URL.Path {
+	case "/source/add":
+		// TODO: Take name and type from form
+		s.handleSourceAdd("name", "gentype", conf)
+	case "/source/delete":
+		s.handleSourceDelete("name")
+		// TODO: Take name from form
+	case "/source/update":
+		// TODO: Take name from form
+		s.handleSourceUpdate("name")
+	}
 	return nil
+}
+
+func (s *server) httpHandleGET(w http.ResponseWriter, r *http.Request) {
+	// Help, status, etc.
+    log.Print("GET requests not implemented")
+}
+
+func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case "POST":
+		s.httpHandlePOST(w, r)
+	default:
+		s.httpHandleGET(w, r)
+	}
 }

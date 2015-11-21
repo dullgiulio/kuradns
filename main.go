@@ -1,17 +1,23 @@
 package main
 
 import (
+	"log"
+	"net/http"
+
 	"github.com/dullgiulio/kuradns/cfg"
 )
 
 func main() {
+	dnsListen := ":8053"
+	httpListen := ":8080"
+
 	srv := newServer(true)
 	srv.start()
 
 	// TODO: Will be called by HTTP handler.
-	srv.handleAddSource("static", "date", cfg.MakeConfig())
+	srv.handleSourceAdd("static", "date", cfg.MakeConfig())
 
-	/* go */ srv.serveDNS(":8053")
+	go srv.serveDNS(dnsListen)
 
-	// TODO: Http handler loop
+	log.Fatal(http.ListenAndServe(httpListen, srv))
 }
