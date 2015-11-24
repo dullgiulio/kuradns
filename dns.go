@@ -13,7 +13,7 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 	// TODO: Keep a sync.Pool of Msg, both answers and NXDOMAIN.
 	m := new(dns.Msg)
 	m.SetReply(r)
-	rec := s.repo.get(r.Question[0].Name)
+	rec := s.repo.get(host(r.Question[0].Name))
 	if rec == nil {
 		m.MsgHdr.Rcode = dns.RcodeNameError
 	} else {

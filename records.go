@@ -2,21 +2,23 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"io"
+    "log"
 	"net"
+    "strings"
 
 	"github.com/miekg/dns"
 )
 
 type record struct {
-	host   string
+	host   host
 	arec   dns.A
 	source *source
 }
 
 func makeRecord(shost, dhost string, ip net.IP, src *source) record {
 	return record{
-		host: dhost,
+		host: host(dhost),
 		arec: dns.A{
 			Hdr: dns.RR_Header{
 				Name:   shost,
@@ -31,7 +33,7 @@ func makeRecord(shost, dhost string, ip net.IP, src *source) record {
 }
 
 func (r record) String() string {
-	return fmt.Sprintf("[%s/%s: %s]", r.source.String(), r.host, &r.arec)
+	return fmt.Sprintf("[%s/%s: %s]", r.source.String(), r.host.dns(), &r.arec)
 }
 
 type records struct {
@@ -70,13 +72,26 @@ func (r *records) clone() *records {
 	return nr
 }
 
-type repository map[string]*records
+type host string
 
-func makeRepository() repository {
-	return make(map[string]*records)
+func (h host) browser() string {
+    return strings.TrimSuffix(string(h), ".")
 }
 
-func (r repository) add(host string, rec record) {
+func (h host) dns() string {
+    if !strings.HasSuffix(string(h), ".") {
+        return string(h) + "."
+    }
+    return string(h)
+}
+
+type repository map[host]*records
+
+func makeRepository() repository {
+	return make(map[host]*records)
+}
+
+func (r repository) add(host host, rec record) {
 	recs, ok := r[host]
 	if !ok {
 		recs = newRecords()
@@ -91,7 +106,7 @@ func (r repository) deleteSource(s *source) {
 	}
 }
 
-func (r repository) updateSource(src *source, debug bool) {
+func (r repository) updateSource(src *source) {
 	cache := makeIPCache()
 
 	for {
@@ -106,14 +121,11 @@ func (r repository) updateSource(src *source, debug bool) {
 			log.Print("failed to lookup %s: %s\n", rentry.Source, err)
 			continue
 		}
-		r.add(rentry.Source, makeRecord(rentry.Source, rentry.Target, res, src))
-		if debug {
-			log.Printf("ADD: %s -> %s [%s]\n", rentry.Source, rentry.Target, res)
-		}
+		r.add(host(rentry.Source), makeRecord(rentry.Source, rentry.Target, res, src))
 	}
 }
 
-func (r repository) get(key string) *record {
+func (r repository) get(key host) *record {
 	rs, ok := r[key]
 	if !ok {
 		return nil
@@ -127,4 +139,18 @@ func (r repository) clone() repository {
 		nr[k] = recs.clone()
 	}
 	return nr
+}
+
+func (r repository) WriteTo(w io.Writer) error {
+    for key, rs := range r {
+        if _, err := fmt.Fprintf(w, "%s\t%s\n", rs.recs[0].host.browser(), key.browser()); err != nil {
+            return err
+        }
+        for i := 1; i < len(rs.recs); i++ {
+            if _, err := fmt.Fprintf(w, "# %s\t%s\n", rs.recs[i].host.browser(), key.browser()); err != nil {
+                return err
+            }
+        }
+    }
+    return nil
 }

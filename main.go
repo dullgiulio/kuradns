@@ -11,7 +11,7 @@ func main() {
 	dnsListen := ":8053"
 	httpListen := ":8080"
 
-	srv := newServer(true)
+	srv := newServer()
 	srv.start()
 
 	// TODO: Will be called by HTTP handler.
