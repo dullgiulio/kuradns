@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-    "log"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -52,17 +52,17 @@ func (s *server) handleSourceUpdate(name string) {
 }
 
 func (s *server) handleDnsDump(w http.ResponseWriter, r *http.Request) error {
-    w.Header().Set("Content-Type", "text/plain")
-    wb := bufio.NewWriter(w)
+	w.Header().Set("Content-Type", "text/plain")
+	wb := bufio.NewWriter(w)
 
-    s.mux.RLock()
-    defer s.mux.RUnlock()
+	s.mux.RLock()
+	defer s.mux.RUnlock()
 
-    if err := s.repo.WriteTo(wb); err != nil {
-        return err
-    }
+	if err := s.repo.WriteTo(wb); err != nil {
+		return err
+	}
 
-    return wb.Flush()
+	return wb.Flush()
 }
 
 // take last value in case of duplicates
@@ -91,16 +91,16 @@ func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 	case "/source/update":
 		// TODO: Take name from form
 		s.handleSourceUpdate("name")
-    }
+	}
 	return nil
 }
 
 func (s *server) httpHandleGET(w http.ResponseWriter, r *http.Request) {
 	// Help, status, etc.
-    switch r.URL.Path {
-    case "/dns/dump":
-        s.handleDnsDump(w, r)
-    }
+	switch r.URL.Path {
+	case "/dns/dump":
+		s.handleDnsDump(w, r)
+	}
 }
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

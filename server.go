@@ -71,6 +71,8 @@ type server struct {
 	// sources of satisfied status
 	srcs      sources
 	repo      repository
+	zone      host
+	self      host
 	mux       sync.RWMutex
 	requests  chan request
 	processes chan request

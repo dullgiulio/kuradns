@@ -6,20 +6,47 @@ import (
 	"github.com/miekg/dns"
 )
 
-func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
+func (s *server) handleDnsA(name host, m *dns.Msg) {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 
+	rec := s.repo.get(name)
+	if rec != nil {
+		m.Answer = append(m.Answer, &rec.arec)
+	} else {
+		m.MsgHdr.Rcode = dns.RcodeNameError
+	}
+}
+
+func (s *server) handleDnsNS(name host, m *dns.Msg) {
+	// TODO: This is easily cacheable.
+	rr := &dns.NS{
+		Hdr: dns.RR_Header{
+			Name:   name.dns(),
+			Rrtype: dns.TypeNS,
+			Class:  dns.ClassINET,
+			Ttl:    6400, // TODO: Make configurable
+		},
+		Ns: s.self.dns(),
+	}
+	m.Answer = append(m.Answer, rr)
+}
+
+func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 	// TODO: Keep a sync.Pool of Msg, both answers and NXDOMAIN.
 	m := new(dns.Msg)
 	m.SetReply(r)
-	rec := s.repo.get(host(r.Question[0].Name))
-	if rec == nil {
-		m.MsgHdr.Rcode = dns.RcodeNameError
-	} else {
-		m.Answer = append(m.Answer, &rec.arec)
+	name := host(r.Question[0].Name)
+
+	switch r.Question[0].Qtype {
+	case dns.TypeNS:
+		s.handleDnsNS(name, m)
+	case dns.TypeANY, dns.TypeA, dns.TypeAAAA:
+		s.handleDnsA(name, m)
 	}
-	w.WriteMsg(m)
+	if err := w.WriteMsg(m); err != nil {
+		log.Printf("Error writing DNS response packet: %s", err)
+	}
 }
 
 func (s *server) serveNetDNS(addr, net string, errCh chan<- error) {
@@ -27,10 +54,13 @@ func (s *server) serveNetDNS(addr, net string, errCh chan<- error) {
 	errCh <- serverTCP.ListenAndServe()
 }
 
-func (s *server) serveDNS(addr, root string) {
+func (s *server) serveDNS(addr string, zone, self host) {
 	errCh := make(chan error)
 
-	dns.HandleFunc(root, s.handleQuery)
+	s.zone = zone
+	s.self = self
+
+	dns.HandleFunc(s.zone.dns(), s.handleQuery)
 
 	go s.serveNetDNS(addr, "udp", errCh)
 	go s.serveNetDNS(addr, "tcp", errCh)

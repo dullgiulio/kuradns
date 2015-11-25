@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"io"
-    "log"
+	"log"
 	"net"
-    "strings"
+	"strings"
 
 	"github.com/miekg/dns"
 )
@@ -75,14 +75,22 @@ func (r *records) clone() *records {
 type host string
 
 func (h host) browser() string {
-    return strings.TrimSuffix(string(h), ".")
+	return strings.TrimSuffix(string(h), ".")
 }
 
 func (h host) dns() string {
-    if !strings.HasSuffix(string(h), ".") {
-        return string(h) + "."
-    }
-    return string(h)
+	l := len(h)
+	if l == 0 {
+		return ""
+	}
+	if h[l-1] == '.' {
+		return string(h)
+	}
+	return string(h) + "."
+}
+
+func (h host) hasSuffix(h2 host) bool {
+	return strings.HasSuffix(h.browser(), h2.browser())
 }
 
 type repository map[host]*records
@@ -115,6 +123,8 @@ func (r repository) updateSource(src *source) {
 			break
 		}
 
+		// TODO: Check that the source is inside the zone
+
 		// TODO: Lookups are slow: make it so that N can be fired at the same time
 		res, err := cache.lookup(rentry.Target)
 		if err != nil {
@@ -142,15 +152,15 @@ func (r repository) clone() repository {
 }
 
 func (r repository) WriteTo(w io.Writer) error {
-    for key, rs := range r {
-        if _, err := fmt.Fprintf(w, "%s\t%s\n", rs.recs[0].host.browser(), key.browser()); err != nil {
-            return err
-        }
-        for i := 1; i < len(rs.recs); i++ {
-            if _, err := fmt.Fprintf(w, "# %s\t%s\n", rs.recs[i].host.browser(), key.browser()); err != nil {
-                return err
-            }
-        }
-    }
-    return nil
+	for key, rs := range r {
+		if _, err := fmt.Fprintf(w, "%s\t%s\n", rs.recs[0].host.browser(), key.browser()); err != nil {
+			return err
+		}
+		for i := 1; i < len(rs.recs); i++ {
+			if _, err := fmt.Fprintf(w, "# %s\t%s\n", rs.recs[i].host.browser(), key.browser()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
