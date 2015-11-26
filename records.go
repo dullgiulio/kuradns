@@ -51,7 +51,7 @@ func (r *records) String() string {
 func (r *records) deleteSource(s *source) {
 	res := r.recs[:0]
 	for _, rec := range r.recs {
-		if rec.source != s {
+		if rec.source.name != s.name {
 			res = append(res, rec)
 		}
 	}
@@ -79,14 +79,7 @@ func (h host) browser() string {
 }
 
 func (h host) dns() string {
-	l := len(h)
-	if l == 0 {
-		return ""
-	}
-	if h[l-1] == '.' {
-		return string(h)
-	}
-	return string(h) + "."
+	return dns.Fqdn(string(h))
 }
 
 func (h host) hasSuffix(h2 host) bool {
@@ -128,7 +121,7 @@ func (r repository) updateSource(src *source) {
 		// TODO: Lookups are slow: make it so that N can be fired at the same time
 		res, err := cache.lookup(rentry.Target)
 		if err != nil {
-			log.Print("failed to lookup %s: %s\n", rentry.Source, err)
+			log.Printf("failed lookup of %s: %s", rentry.Target, err)
 			continue
 		}
 		r.add(host(rentry.Source), makeRecord(rentry.Source, rentry.Target, res, src))
@@ -153,11 +146,14 @@ func (r repository) clone() repository {
 
 func (r repository) WriteTo(w io.Writer) error {
 	for key, rs := range r {
-		if _, err := fmt.Fprintf(w, "%s\t%s\n", rs.recs[0].host.browser(), key.browser()); err != nil {
+		if len(rs.recs) == 0 {
+			continue
+		}
+		if _, err := fmt.Fprintf(w, "%s\t%s\t#-> %s\n", rs.recs[0].arec.A, key.browser(), rs.recs[0].host.browser()); err != nil {
 			return err
 		}
 		for i := 1; i < len(rs.recs); i++ {
-			if _, err := fmt.Fprintf(w, "# %s\t%s\n", rs.recs[i].host.browser(), key.browser()); err != nil {
+			if _, err := fmt.Fprintf(w, "# %s\t%s\t#-> %s\n", rs.recs[i].arec.A, key.browser(), rs.recs[i].host.browser()); err != nil {
 				return err
 			}
 		}

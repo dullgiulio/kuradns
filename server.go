@@ -62,7 +62,7 @@ func (r request) String() string {
 	case reqtypeUp:
 		op = "update"
 	}
-	return fmt.Sprintf("[add %s]", op, r.src.name)
+	return fmt.Sprintf("%s '%s'", op, r.src.name)
 }
 
 type server struct {
@@ -135,7 +135,7 @@ func (s *server) runHandler() {
 		switch req.rtype {
 		case reqtypeAdd:
 			if s.srcsReq.has(req.src.name) {
-				req.fail(fmt.Errorf("source %s already exists", req.String()))
+				req.fail(fmt.Errorf("%s: source already exists", req.String()))
 				continue
 			}
 			if err := req.send(s.processes); err != nil {
@@ -145,7 +145,7 @@ func (s *server) runHandler() {
 			s.srcsReq[req.src.name] = req.src
 		case reqtypeDel:
 			if !s.srcsReq.has(req.src.name) {
-				req.fail(fmt.Errorf("source %s not found", req.String()))
+				req.fail(fmt.Errorf("%s: source not found", req.String()))
 				continue
 			}
 			if err := req.send(s.processes); err != nil {
@@ -155,7 +155,7 @@ func (s *server) runHandler() {
 			delete(s.srcsReq, req.src.name)
 		case reqtypeUp:
 			if !s.srcsReq.has(req.src.name) {
-				req.fail(fmt.Errorf("source %s not found", req.String()))
+				req.fail(fmt.Errorf("%s: source not found", req.String()))
 				continue
 			}
 			if err := req.send(s.processes); err != nil {

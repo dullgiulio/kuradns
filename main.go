@@ -1,23 +1,30 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
 	"net/http"
-
-	"github.com/dullgiulio/kuradns/cfg"
+	"os"
 )
 
 func main() {
-	dnsListen := ":8053"
-	httpListen := ":8080"
+	var (
+		dnsListen  = flag.String("dns", ":8053", "`HOST:PORT` to listen for DNS requests (both UDP and TCP)")
+		httpListen = flag.String("http", ":8080", "`HOST:PORT` to listen for HTTP requests")
+		zone       = flag.String("zone", "lan", "`ZONE` domain name to serve, without preceding dot")
+		hostname   = flag.String("host", "localhost", "Hostname `HOSTNAME` representing this DNS server itself")
+	)
+	flag.Usage = func() {
+		// TODO: Write extensive usage of HTTP API
+		fmt.Fprintf(os.Stderr, "Usage of kuradns:\n")
+		flag.PrintDefaults()
+	}
+	flag.Parse()
 
 	srv := newServer()
 	srv.start()
 
-	// TODO: Will be called by HTTP handler.
-	srv.handleSourceAdd("static", "date", cfg.MakeConfig())
-
-	go srv.serveDNS(dnsListen, host("mydomain.test"), host("veli.local"))
-
-	log.Fatal(http.ListenAndServe(httpListen, srv))
+	go srv.serveDNS(*dnsListen, host(*zone), host(*hostname))
+	log.Fatal(http.ListenAndServe(*httpListen, srv))
 }

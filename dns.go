@@ -45,7 +45,7 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 		s.handleDnsA(name, m)
 	}
 	if err := w.WriteMsg(m); err != nil {
-		log.Printf("Error writing DNS response packet: %s", err)
+		log.Printf("dns: %s: error writing DNS response packet: %s", w.RemoteAddr(), err)
 	}
 }
 
@@ -66,6 +66,6 @@ func (s *server) serveDNS(addr string, zone, self host) {
 	go s.serveNetDNS(addr, "tcp", errCh)
 
 	if err := <-errCh; err != nil {
-		log.Fatal("Cannot start DNS server: ", err)
+		log.Fatal("dns: cannot start DNS server: ", err)
 	}
 }

@@ -14,7 +14,7 @@ type Generator interface {
 
 var ErrInvalidGenerator = errors.New("invalid generator name")
 
-func MakeGenerator(name string, conf cfg.Config) (Generator, error) {
+func MakeGenerator(name string, conf *cfg.Config) (Generator, error) {
 	switch name { // strings.Lower
 	case "date":
 		g := NewDategen()
