@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/miekg/dns"
+
+	"github.com/dullgiulio/kuradns/gen"
 )
 
 type record struct {
@@ -108,24 +110,62 @@ func (r repository) deleteSource(s *source) {
 }
 
 func (r repository) updateSource(src *source) {
-	cache := makeIPCache()
+	res := newResolver(src, 6)
 
-	for {
-		rentry := src.gen.Generate()
-		if rentry.IsEmpty() {
-			break
+	go func() {
+		for {
+			rentry := src.gen.Generate()
+			if rentry.IsEmpty() {
+				close(res.rentries)
+				return
+			}
+			// TODO: Check that the source is inside the zone
+			res.rentries <- rentry
 		}
+	}()
 
-		// TODO: Check that the source is inside the zone
+	for rec := range res.records {
+		r.add(host(rec.arec.Hdr.Name), rec)
+	}
+}
 
-		// TODO: Lookups are slow: make it so that N can be fired at the same time
-		res, err := cache.lookup(rentry.Target)
+type resolver struct {
+	src      *source
+	rentries chan gen.RawEntry
+	records  chan record
+}
+
+func newResolver(src *source, workers int) *resolver {
+	r := &resolver{
+		src:      src,
+		rentries: make(chan gen.RawEntry),
+		records:  make(chan record),
+	}
+	for i := 0; i < workers; i++ {
+		go r.run()
+	}
+	return r
+}
+
+func (r *resolver) run() {
+	for rentry := range r.rentries {
+		ip, err := lookup(rentry.Target)
 		if err != nil {
 			log.Printf("failed lookup of %s: %s", rentry.Target, err)
 			continue
 		}
-		r.add(host(rentry.Source), makeRecord(rentry.Source, rentry.Target, res, src))
+		r.records <- makeRecord(rentry.Source, rentry.Target, ip, r.src)
 	}
+	close(r.records)
+}
+
+func lookup(host string) (net.IP, error) {
+	var ip net.IP
+	iplist, err := net.LookupIP(host)
+	if err == nil {
+		ip = iplist[0]
+	}
+	return ip, err
 }
 
 func (r repository) get(key host) *record {
