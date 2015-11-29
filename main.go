@@ -14,6 +14,7 @@ func main() {
 		httpListen = flag.String("http", ":8080", "`HOST:PORT` to listen for HTTP requests")
 		zone       = flag.String("zone", "lan", "`ZONE` domain name to serve, without preceding dot")
 		hostname   = flag.String("host", "localhost", "Hostname `HOSTNAME` representing this DNS server itself")
+		info       = flag.Bool("info", false, "Show log messages on client requests")
 	)
 	flag.Usage = func() {
 		// TODO: Write extensive usage of HTTP API
@@ -22,7 +23,7 @@ func main() {
 	}
 	flag.Parse()
 
-	srv := newServer()
+	srv := newServer(*info)
 	srv.start()
 
 	go srv.serveDNS(*dnsListen, host(*zone), host(*hostname))

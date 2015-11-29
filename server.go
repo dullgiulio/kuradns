@@ -66,6 +66,7 @@ func (r request) String() string {
 }
 
 type server struct {
+	verbose bool
 	// sources of requests status
 	srcsReq sources
 	// sources of satisfied status
@@ -78,8 +79,9 @@ type server struct {
 	processes chan request
 }
 
-func newServer() *server {
+func newServer(verbose bool) *server {
 	return &server{
+		verbose:   verbose,
 		requests:  make(chan request),
 		processes: make(chan request, 10), // TODO: buffering is a param
 		repo:      makeRepository(),

@@ -33,6 +33,9 @@ func (s *server) handleDnsNS(name host, m *dns.Msg) {
 }
 
 func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
+	if s.verbose {
+		log.Printf("[info] dns: request for %s", r)
+	}
 	// TODO: Keep a sync.Pool of Msg, both answers and NXDOMAIN.
 	m := new(dns.Msg)
 	m.SetReply(r)

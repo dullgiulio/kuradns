@@ -158,6 +158,9 @@ func (s *server) httpHandleGET(w http.ResponseWriter, r *http.Request) error {
 
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var err error
+	if s.verbose {
+		log.Printf("[info] http: request %s %s", r.Method, r.URL.Path)
+	}
 	switch r.Method {
 	case "POST":
 		err = s.httpHandlePOST(w, r)
