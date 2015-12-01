@@ -16,13 +16,13 @@ var ErrInvalidGenerator = errors.New("invalid generator name")
 
 func MakeGenerator(name string, conf *cfg.Config) (Generator, error) {
 	switch name { // strings.Lower
+	case "mysql":
+		return newMysql(conf)
 	case "date":
-		g := NewDategen()
-		go g.run()
+		g := newDategen()
 		return g, nil
 	case "static":
-		g := NewStaticgen()
-		go g.run()
+		g := newStaticgen()
 		return g, nil
 	default:
 		return nil, ErrInvalidGenerator

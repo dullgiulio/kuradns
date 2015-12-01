@@ -1,17 +1,19 @@
 package gen
 
 // staticgen is a generator that yields constant entries. Used for testing.
-type Staticgen struct {
+type staticgen struct {
 	ch chan RawEntry
 }
 
-func NewStaticgen() *Staticgen {
-	return &Staticgen{
+func newStaticgen() *staticgen {
+	s := &staticgen{
 		ch: make(chan RawEntry),
 	}
+	go s.run()
+	return s
 }
 
-func (s *Staticgen) run() {
+func (s *staticgen) run() {
 	entries := []RawEntry{
 		MakeRawEntry("localhost", "127.0.0.1"),
 		MakeRawEntry("some.host.com", "localhost"),
@@ -23,6 +25,6 @@ func (s *Staticgen) run() {
 	close(s.ch)
 }
 
-func (s *Staticgen) Generate() RawEntry {
+func (s *staticgen) Generate() RawEntry {
 	return <-s.ch
 }

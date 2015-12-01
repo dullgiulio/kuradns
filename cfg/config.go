@@ -26,6 +26,13 @@ func (cf *Config) Get(k string) (string, bool) {
 	return v, ok
 }
 
+func (cf *Config) GetVal(k, defaultVal string) string {
+	if v, ok := cf.m[k]; ok {
+		return v
+	}
+	return defaultVal
+}
+
 func (cf *Config) FromJSON(r io.Reader) error {
 	return json.NewDecoder(r).Decode(&cf.m)
 }

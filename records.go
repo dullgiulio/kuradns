@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/miekg/dns"
 
@@ -133,6 +134,7 @@ type resolver struct {
 	src      *source
 	rentries chan gen.RawEntry
 	records  chan record
+	wg       sync.WaitGroup
 }
 
 func newResolver(src *source, workers int) *resolver {
@@ -141,9 +143,14 @@ func newResolver(src *source, workers int) *resolver {
 		rentries: make(chan gen.RawEntry),
 		records:  make(chan record),
 	}
+	r.wg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go r.run()
 	}
+	go func() {
+		r.wg.Wait()
+		close(r.records)
+	}()
 	return r
 }
 
@@ -156,7 +163,7 @@ func (r *resolver) run() {
 		}
 		r.records <- makeRecord(rentry.Source, rentry.Target, ip, r.src)
 	}
-	close(r.records)
+	r.wg.Done()
 }
 
 func lookup(host string) (net.IP, error) {
