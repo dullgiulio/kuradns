@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
 
 type reqtype int
@@ -74,13 +75,17 @@ type server struct {
 	repo      repository
 	zone      host
 	self      host
+	ttl       time.Duration
 	mux       sync.RWMutex
 	requests  chan request
 	processes chan request
 }
 
-func newServer(verbose bool) *server {
+func newServer(verbose bool, ttl time.Duration, zone, self host) *server {
 	return &server{
+		zone:      zone,
+		self:      self,
+		ttl:       ttl,
 		verbose:   verbose,
 		requests:  make(chan request),
 		processes: make(chan request, 10), // TODO: buffering is a param
@@ -110,7 +115,7 @@ func (s *server) runWorker() {
 			if s.srcs.has(req.src.name) {
 				continue
 			}
-			repo.updateSource(req.src)
+			repo.updateSource(req.src, s.ttl)
 			s.setRepo(repo)
 			s.srcs[req.src.name] = req.src
 		case reqtypeDel:
@@ -125,7 +130,7 @@ func (s *server) runWorker() {
 				continue
 			}
 			repo.deleteSource(req.src)
-			repo.updateSource(req.src)
+			repo.updateSource(req.src, s.ttl)
 			s.setRepo(repo)
 			s.srcs[req.src.name] = req.src
 		}

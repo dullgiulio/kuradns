@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/miekg/dns"
 
@@ -19,7 +20,7 @@ type record struct {
 	source *source
 }
 
-func makeRecord(shost, dhost string, ip net.IP, src *source) record {
+func makeRecord(shost, dhost string, ip net.IP, ttl time.Duration, src *source) record {
 	return record{
 		host: host(dhost),
 		arec: dns.A{
@@ -27,7 +28,7 @@ func makeRecord(shost, dhost string, ip net.IP, src *source) record {
 				Name:   shost,
 				Rrtype: dns.TypeA,
 				Class:  dns.ClassINET,
-				Ttl:    6400, // TODO: Make configurable
+				Ttl:    uint32(ttl.Seconds()),
 			},
 			A: ip,
 		},
@@ -110,8 +111,8 @@ func (r repository) deleteSource(s *source) {
 	}
 }
 
-func (r repository) updateSource(src *source) {
-	res := newResolver(src, 6)
+func (r repository) updateSource(src *source, ttl time.Duration) {
+	res := newResolver(src, ttl, 6)
 
 	go func() {
 		for {
@@ -132,14 +133,16 @@ func (r repository) updateSource(src *source) {
 
 type resolver struct {
 	src      *source
+	ttl      time.Duration
 	rentries chan gen.RawEntry
 	records  chan record
 	wg       sync.WaitGroup
 }
 
-func newResolver(src *source, workers int) *resolver {
+func newResolver(src *source, ttl time.Duration, workers int) *resolver {
 	r := &resolver{
 		src:      src,
+		ttl:      ttl,
 		rentries: make(chan gen.RawEntry),
 		records:  make(chan record),
 	}
@@ -161,7 +164,7 @@ func (r *resolver) run() {
 			log.Printf("failed lookup of %s: %s", rentry.Target, err)
 			continue
 		}
-		r.records <- makeRecord(rentry.Source, rentry.Target, ip, r.src)
+		r.records <- makeRecord(rentry.Source, rentry.Target, ip, r.ttl, r.src)
 	}
 	r.wg.Done()
 }

@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 )
 
 func main() {
@@ -15,6 +16,7 @@ func main() {
 		zone       = flag.String("zone", "lan", "`ZONE` domain name to serve, without preceding dot")
 		hostname   = flag.String("host", "localhost", "Hostname `HOSTNAME` representing this DNS server itself")
 		info       = flag.Bool("info", false, "Show log messages on client requests")
+		ttl        = flag.Duration("ttl", 1*time.Hour, "Duration `D` to be cached for DNS responses")
 	)
 	flag.Usage = func() {
 		// TODO: Write extensive usage of HTTP API
@@ -23,9 +25,9 @@ func main() {
 	}
 	flag.Parse()
 
-	srv := newServer(*info)
+	srv := newServer(*info, *ttl, host(*zone), host(*hostname))
 	srv.start()
 
-	go srv.serveDNS(*dnsListen, host(*zone), host(*hostname))
+	go srv.serveDNS(*dnsListen)
 	log.Fatal(http.ListenAndServe(*httpListen, srv))
 }

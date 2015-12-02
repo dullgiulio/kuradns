@@ -25,7 +25,7 @@ func (s *server) handleDnsNS(name host, m *dns.Msg) {
 			Name:   name.dns(),
 			Rrtype: dns.TypeNS,
 			Class:  dns.ClassINET,
-			Ttl:    6400, // TODO: Make configurable
+			Ttl:    uint32(s.ttl.Seconds()),
 		},
 		Ns: s.self.dns(),
 	}
@@ -57,11 +57,8 @@ func (s *server) serveNetDNS(addr, net string, errCh chan<- error) {
 	errCh <- serverTCP.ListenAndServe()
 }
 
-func (s *server) serveDNS(addr string, zone, self host) {
+func (s *server) serveDNS(addr string) {
 	errCh := make(chan error)
-
-	s.zone = zone
-	s.self = self
 
 	dns.HandleFunc(s.zone.dns(), s.handleQuery)
 
