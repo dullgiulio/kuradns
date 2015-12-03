@@ -17,7 +17,7 @@ var errUnhandledURL = errors.New("unhandled URL")
 
 func (s *server) handleHttpError(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "An error occurred; please refer to the logs for more information", 500)
-	log.Printf("http: %s %s %s: %s", r.RemoteAddr, r.Method, r.URL.Path, err)
+	log.Printf("[error] http: %s %s %s: %s", r.RemoteAddr, r.Method, r.URL.Path, err)
 }
 
 func (s *server) handleSourceAdd(name, gentype string, conf *cfg.Config) error {

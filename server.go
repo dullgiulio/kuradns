@@ -76,6 +76,7 @@ type server struct {
 	zone      host
 	self      host
 	ttl       time.Duration
+	respPool  sync.Pool
 	mux       sync.RWMutex
 	requests  chan request
 	processes chan request

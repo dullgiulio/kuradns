@@ -29,5 +29,6 @@ func main() {
 	srv.start()
 
 	go srv.serveDNS(*dnsListen)
+	log.Printf("[info] http: listening on %s", *httpListen)
 	log.Fatal(http.ListenAndServe(*httpListen, srv))
 }

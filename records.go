@@ -161,7 +161,7 @@ func (r *resolver) run() {
 	for rentry := range r.rentries {
 		ip, err := lookup(rentry.Target)
 		if err != nil {
-			log.Printf("failed lookup of %s: %s", rentry.Target, err)
+			log.Printf("[error] repository: failed lookup of %s: %s", rentry.Target, err)
 			continue
 		}
 		r.records <- makeRecord(rentry.Source, rentry.Target, ip, r.ttl, r.src)
