@@ -151,6 +151,7 @@ func (s *server) httpHandleGET(w http.ResponseWriter, r *http.Request) error {
 		return s.handleDnsDump(w, r)
 	case "/favicon.ico":
 		// Shut up on bogus requests
+		http.NotFound(w, r)
 		return nil
 	}
 	return errUnhandledURL
@@ -162,7 +163,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[info] http: request %s %s", r.Method, r.URL.Path)
 	}
 	switch r.Method {
-	case "POST":
+	case "POST", "PUT":
 		err = s.httpHandlePOST(w, r)
 	default:
 		err = s.httpHandleGET(w, r)
