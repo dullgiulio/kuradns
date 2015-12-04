@@ -19,7 +19,7 @@ func MakeGenerator(name string, conf *cfg.Config) (Generator, error) {
 	case "mysql":
 		return newMysql(conf)
 	case "date":
-		g := newDategen()
+		g := newDategen(conf)
 		return g, nil
 	case "static":
 		g := newStaticgen()

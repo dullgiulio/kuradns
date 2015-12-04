@@ -111,7 +111,7 @@ func (r repository) deleteSource(s *source) {
 	}
 }
 
-func (r repository) updateSource(src *source, ttl time.Duration) {
+func (r repository) updateSource(src *source, zone host, ttl time.Duration) {
 	res := newResolver(src, ttl, 6)
 
 	go func() {
@@ -121,7 +121,11 @@ func (r repository) updateSource(src *source, ttl time.Duration) {
 				close(res.rentries)
 				return
 			}
-			// TODO: Check that the source is inside the zone
+			src := host(rentry.Source)
+			if !src.hasSuffix(zone) {
+				log.Printf("[error] repository: domain %s is not inside zone %s, skipped", src.dns(), zone.dns())
+				continue
+			}
 			res.rentries <- rentry
 		}
 	}()

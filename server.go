@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -114,26 +115,38 @@ func (s *server) runWorker() {
 		switch req.rtype {
 		case reqtypeAdd:
 			if s.srcs.has(req.src.name) {
+				log.Printf("[error] sources: not added existing source %s", req.src.name)
 				continue
 			}
-			repo.updateSource(req.src, s.ttl)
+			repo.updateSource(req.src, s.zone, s.ttl)
 			s.setRepo(repo)
 			s.srcs[req.src.name] = req.src
+			if s.verbose {
+				log.Printf("[info] sources: added source %s", req.src.name)
+			}
 		case reqtypeDel:
 			if !s.srcs.has(req.src.name) {
+				log.Printf("[error] sources: not removed non-existing source %s", req.src.name)
 				continue
 			}
 			repo.deleteSource(req.src)
 			s.setRepo(repo)
 			delete(s.srcs, req.src.name)
+			if s.verbose {
+				log.Printf("[info] sources: deleted source %s", req.src.name)
+			}
 		case reqtypeUp:
 			if !s.srcs.has(req.src.name) {
+				log.Printf("[error] sources: not updated non-existing source %s", req.src.name)
 				continue
 			}
 			repo.deleteSource(req.src)
-			repo.updateSource(req.src, s.ttl)
+			repo.updateSource(req.src, s.zone, s.ttl)
 			s.setRepo(repo)
 			s.srcs[req.src.name] = req.src
+			if s.verbose {
+				log.Printf("[info] sources: updated source %s", req.src.name)
+			}
 		}
 	}
 }

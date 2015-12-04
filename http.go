@@ -113,10 +113,12 @@ func (s *server) parseBodyData(w http.ResponseWriter, r *http.Request) (*cfg.Con
 
 func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 	conf, err := s.parseBodyData(w, r)
-	// TODO: Set server config stuff (zone, self) to be used by generators.
 	if err != nil {
 		return err
 	}
+	conf.Put("dns.zone", s.zone.browser())
+	conf.Put("dns.self", s.self.browser())
+
 	switch r.URL.Path {
 	case "/source/add":
 		sname, err := s.getFromConf(conf, "source.name")
