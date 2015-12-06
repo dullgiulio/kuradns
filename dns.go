@@ -25,7 +25,21 @@ func (s *server) handleDnsA(name host, m *dns.Msg) {
 	// Important: all things set here must be overwritten
 	rec := s.repo.get(name)
 	if rec != nil {
-		m.Answer = append(m.Answer, &rec.arec)
+		m.Answer = append(m.Answer, rec.a)
+		m.MsgHdr.Rcode = dns.RcodeSuccess
+	} else {
+		m.Answer = nil
+		m.MsgHdr.Rcode = dns.RcodeNameError
+	}
+}
+
+func (s *server) handleDnsCNAME(name host, m *dns.Msg) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+
+	rec := s.repo.get(name)
+	if rec != nil && rec.cname != nil {
+		m.Answer = append(m.Answer, rec.cname)
 		m.MsgHdr.Rcode = dns.RcodeSuccess
 	} else {
 		m.Answer = nil
@@ -54,8 +68,20 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 
 		m := s.respPool.Get().(*dns.Msg)
 
-		s.handleDnsA(host(r.Question[0].Name), m)
 		m.SetReply(r)
+		s.handleDnsA(host(r.Question[0].Name), m)
+		s.writeDnsMsg(w, m)
+
+		s.respPool.Put(m)
+	case dns.TypeCNAME:
+		if s.verbose {
+			log.Printf("[info] dns: request for CNAME %s", r.Question[0].Name)
+		}
+
+		m := s.respPool.Get().(*dns.Msg)
+
+		m.SetReply(r)
+		s.handleDnsCNAME(host(r.Question[0].Name), m)
 		s.writeDnsMsg(w, m)
 
 		s.respPool.Put(m)

@@ -15,17 +15,19 @@ import (
 )
 
 type record struct {
-	host   host
-	arec   dns.A
-	source *source
+	shost, dhost host
+	a            dns.RR
+	cname        dns.RR
+	source       *source
 }
 
-func makeRecord(shost, dhost string, ip net.IP, ttl time.Duration, src *source) record {
-	return record{
-		host: host(dhost),
-		arec: dns.A{
+func makeRecord(shost, dhost host, cname bool, ip net.IP, ttl time.Duration, src *source) record {
+	r := record{
+		shost: shost,
+		dhost: dhost,
+		a: &dns.A{
 			Hdr: dns.RR_Header{
-				Name:   shost,
+				Name:   shost.dns(),
 				Rrtype: dns.TypeA,
 				Class:  dns.ClassINET,
 				Ttl:    uint32(ttl.Seconds()),
@@ -34,10 +36,26 @@ func makeRecord(shost, dhost string, ip net.IP, ttl time.Duration, src *source) 
 		},
 		source: src,
 	}
+	if cname {
+		r.cname = &dns.CNAME{
+			Hdr: dns.RR_Header{
+				Name:   shost.dns(),
+				Rrtype: dns.TypeCNAME,
+				Class:  dns.ClassINET,
+				Ttl:    uint32(ttl.Seconds()),
+			},
+			Target: host(dhost).dns(),
+		}
+	}
+	return r
+}
+
+func (r record) target() string {
+	return r.dhost.browser()
 }
 
 func (r record) String() string {
-	return fmt.Sprintf("[%s/%s: %s]", r.source.String(), r.host.dns(), &r.arec)
+	return fmt.Sprintf("[%s %s]", r.source.String(), r.shost.dns())
 }
 
 type records struct {
@@ -90,19 +108,20 @@ func (h host) hasSuffix(h2 host) bool {
 	return strings.HasSuffix(h.browser(), h2.browser())
 }
 
-type repository map[host]*records
+type repository map[string]*records
 
 func makeRepository() repository {
-	return make(map[host]*records)
+	return make(map[string]*records)
 }
 
 func (r repository) add(host host, rec record) {
-	recs, ok := r[host]
+	key := host.browser()
+	recs, ok := r[key]
 	if !ok {
 		recs = newRecords()
 	}
 	recs.pushFront(rec)
-	r[host] = recs
+	r[key] = recs
 }
 
 func (r repository) deleteSource(s *source) {
@@ -131,11 +150,12 @@ func (r repository) updateSource(src *source, zone host, ttl time.Duration) {
 	}()
 
 	for rec := range res.records {
-		r.add(host(rec.arec.Hdr.Name), rec)
+		r.add(rec.shost, rec)
 	}
 }
 
 type resolver struct {
+	cname    bool
 	src      *source
 	ttl      time.Duration
 	rentries chan gen.RawEntry
@@ -163,12 +183,19 @@ func newResolver(src *source, ttl time.Duration, workers int) *resolver {
 
 func (r *resolver) run() {
 	for rentry := range r.rentries {
-		ip, err := lookup(rentry.Target)
-		if err != nil {
-			log.Printf("[error] repository: failed lookup of %s: %s", rentry.Target, err)
-			continue
+		var cname bool
+		ip := net.ParseIP(rentry.Target)
+		if ip == nil {
+			var err error
+			// It's an hostname: resolve it and make both A and CNAME records
+			ip, err = lookup(rentry.Target)
+			if err != nil {
+				log.Printf("[error] repository: failed lookup of %s: %s", rentry.Target, err)
+				continue
+			}
+			cname = true
 		}
-		r.records <- makeRecord(rentry.Source, rentry.Target, ip, r.ttl, r.src)
+		r.records <- makeRecord(host(rentry.Source), host(rentry.Target), cname, ip, r.ttl, r.src)
 	}
 	r.wg.Done()
 }
@@ -182,8 +209,8 @@ func lookup(host string) (net.IP, error) {
 	return ip, err
 }
 
-func (r repository) get(key host) *record {
-	rs, ok := r[key]
+func (r repository) get(host host) *record {
+	rs, ok := r[host.browser()]
 	if !ok {
 		return nil
 	}
@@ -203,11 +230,11 @@ func (r repository) WriteTo(w io.Writer) error {
 		if len(rs.recs) == 0 {
 			continue
 		}
-		if _, err := fmt.Fprintf(w, "%s\t%s\t#-> %s\n", rs.recs[0].arec.A, key.browser(), rs.recs[0].host.browser()); err != nil {
+		if _, err := fmt.Fprintf(w, "%s\t%s\n", rs.recs[0].target(), key); err != nil {
 			return err
 		}
 		for i := 1; i < len(rs.recs); i++ {
-			if _, err := fmt.Fprintf(w, "# %s\t%s\t#-> %s\n", rs.recs[i].arec.A, key.browser(), rs.recs[i].host.browser()); err != nil {
+			if _, err := fmt.Fprintf(w, "# %s\t%s\n", rs.recs[i].target(), key); err != nil {
 				return err
 			}
 		}

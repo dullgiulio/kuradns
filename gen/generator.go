@@ -22,7 +22,7 @@ func MakeGenerator(name string, conf *cfg.Config) (Generator, error) {
 		g := newDategen(conf)
 		return g, nil
 	case "static":
-		g := newStaticgen()
+		g := newStaticgen(conf)
 		return g, nil
 	default:
 		return nil, ErrInvalidGenerator
