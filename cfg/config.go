@@ -3,6 +3,7 @@ package cfg
 import (
 	"encoding/json"
 	"io"
+	"strings"
 )
 
 type Config struct {
@@ -33,6 +34,15 @@ func (cf *Config) GetVal(k, defaultVal string) string {
 	return defaultVal
 }
 
-func (cf *Config) FromJSON(r io.Reader) error {
-	return json.NewDecoder(r).Decode(&cf.m)
+func (cf *Config) FromJSON(r io.Reader, prefix string) error {
+	m := make(map[string]string)
+	if err := json.NewDecoder(r).Decode(&m); err != nil {
+		return err
+	}
+	for k, v := range m {
+		if strings.HasPrefix(k, prefix) {
+			cf.m[k] = v
+		}
+	}
+	return nil
 }

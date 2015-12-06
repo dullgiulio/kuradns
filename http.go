@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/dullgiulio/kuradns/cfg"
 	"github.com/dullgiulio/kuradns/gen"
@@ -79,13 +80,15 @@ func (s *server) handleDnsDump(w http.ResponseWriter, r *http.Request) error {
 // take last value in case of duplicates
 func (s *server) configFromForm(cf *cfg.Config, form url.Values) error {
 	for k, vs := range form {
-		cf.Put(k, vs[len(vs)-1])
+		if strings.HasPrefix(k, "config.") {
+			cf.Put(k, vs[len(vs)-1])
+		}
 	}
 	return nil
 }
 
 func (s *server) configFromJSON(cf *cfg.Config, r io.Reader) error {
-	if err := cf.FromJSON(r); err != nil {
+	if err := cf.FromJSON(r, "config."); err != nil {
 		return fmt.Errorf("cannot parse JSON: %s", err)
 	}
 	return nil
