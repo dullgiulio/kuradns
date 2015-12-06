@@ -14,6 +14,10 @@ func NewConfig() *Config {
 	return &Config{make(map[string]string)}
 }
 
+func FromMap(m map[string]string) *Config {
+	return &Config{m}
+}
+
 func (cf *Config) Map() map[string]string {
 	return cf.m
 }
@@ -34,13 +38,13 @@ func (cf *Config) GetVal(k, defaultVal string) string {
 	return defaultVal
 }
 
-func (cf *Config) FromJSON(r io.Reader, prefix string) error {
+func (cf *Config) FromJSON(r io.Reader) error {
 	m := make(map[string]string)
 	if err := json.NewDecoder(r).Decode(&m); err != nil {
 		return err
 	}
 	for k, v := range m {
-		if strings.HasPrefix(k, prefix) {
+		if strings.HasPrefix(k, "config.") || strings.HasPrefix(k, "source.") {
 			cf.m[k] = v
 		}
 	}

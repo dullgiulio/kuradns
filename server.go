@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
+
+	"github.com/dullgiulio/kuradns/cfg"
 )
 
 type reqtype int
@@ -69,6 +73,7 @@ func (r request) String() string {
 
 type server struct {
 	verbose bool
+	fname   string
 	// sources of requests status
 	srcsReq sources
 	// sources of satisfied status
@@ -83,8 +88,9 @@ type server struct {
 	processes chan request
 }
 
-func newServer(verbose bool, ttl time.Duration, zone, self host) *server {
-	return &server{
+func newServer(fname string, verbose bool, ttl time.Duration, zone, self host) *server {
+	s := &server{
+		fname:     fname,
 		zone:      zone,
 		self:      self,
 		ttl:       ttl,
@@ -94,6 +100,82 @@ func newServer(verbose bool, ttl time.Duration, zone, self host) *server {
 		repo:      makeRepository(),
 		srcsReq:   makeSources(),
 		srcs:      makeSources(),
+	}
+	s.start()
+	if fname != "" {
+		s.restoreSources()
+	}
+	return s
+}
+
+func (s *server) restoreSources() {
+	f, err := os.Open(s.fname)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Fatalf("cannot restore sources: %s", err)
+		}
+		return
+	}
+	defer f.Close()
+	// unset s.fname so that while we add source again, they are not persisted
+	// in an intermediate state.
+	s.mux.Lock()
+	fname := s.fname
+	s.fname = ""
+	s.mux.Unlock()
+
+	var tmp map[string]struct {
+		Name string
+		Conf map[string]string
+	}
+	if err := json.NewDecoder(f).Decode(&tmp); err != nil {
+		log.Printf("cannot restore sources, error decoding JSON: %s", err)
+		return
+	}
+	for _, v := range tmp {
+		stype := v.Conf["source.type"]
+		name := v.Name
+		if err := s.handleSourceAdd(name, stype, cfg.FromMap(v.Conf)); err != nil {
+			log.Printf("cannot restore source %s: %s", name, err)
+		}
+	}
+
+	// Re-enable persitance.
+	s.mux.Lock()
+	s.fname = fname
+	s.mux.Unlock()
+}
+
+func (s *server) persistSources() {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	if s.fname == "" {
+		return
+	}
+
+	f, err := os.Create(s.fname)
+	if err != nil {
+		log.Printf("cannot persist sources: %s", err)
+		return
+	}
+	defer f.Close()
+	tmp := make(map[string]struct {
+		Name string
+		Conf map[string]string
+	})
+	for k, v := range s.srcsReq {
+		tmp[k] = struct {
+			Name string
+			Conf map[string]string
+		}{
+			Name: v.name,
+			Conf: v.conf.Map(),
+		}
+	}
+	if err := json.NewEncoder(f).Encode(&tmp); err != nil {
+		log.Printf("cannot persist sources: %s", err)
+		return
 	}
 }
 
@@ -185,6 +267,7 @@ func (s *server) runHandler() {
 		default:
 			req.fail(errUnknownReqType)
 		}
+		s.persistSources()
 		req.done()
 	}
 }

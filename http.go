@@ -22,7 +22,7 @@ func (s *server) handleHttpError(w http.ResponseWriter, r *http.Request, err err
 }
 
 func (s *server) handleSourceAdd(name, gentype string, conf *cfg.Config) error {
-	src := newSource(name)
+	src := newSource(name, conf)
 	gen, err := gen.MakeGenerator(gentype, conf)
 	if err != nil {
 		return fmt.Errorf("cannot start generator: %s", err)
@@ -40,7 +40,7 @@ func (s *server) handleSourceAdd(name, gentype string, conf *cfg.Config) error {
 }
 
 func (s *server) handleSourceDelete(name string) error {
-	src := newSource(name)
+	src := newSource(name, nil)
 	req := makeRequest(src, reqtypeDel)
 
 	s.requests <- req
@@ -52,7 +52,7 @@ func (s *server) handleSourceDelete(name string) error {
 }
 
 func (s *server) handleSourceUpdate(name string) error {
-	src := newSource(name)
+	src := newSource(name, nil)
 	req := makeRequest(src, reqtypeUp)
 
 	s.requests <- req
@@ -80,7 +80,7 @@ func (s *server) handleDnsDump(w http.ResponseWriter, r *http.Request) error {
 // take last value in case of duplicates
 func (s *server) configFromForm(cf *cfg.Config, form url.Values) error {
 	for k, vs := range form {
-		if strings.HasPrefix(k, "config.") {
+		if strings.HasPrefix(k, "config.") || strings.HasPrefix(k, "source.") {
 			cf.Put(k, vs[len(vs)-1])
 		}
 	}
@@ -88,7 +88,7 @@ func (s *server) configFromForm(cf *cfg.Config, form url.Values) error {
 }
 
 func (s *server) configFromJSON(cf *cfg.Config, r io.Reader) error {
-	if err := cf.FromJSON(r, "config."); err != nil {
+	if err := cf.FromJSON(r); err != nil {
 		return fmt.Errorf("cannot parse JSON: %s", err)
 	}
 	return nil

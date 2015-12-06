@@ -15,6 +15,7 @@ func main() {
 		httpListen = flag.String("http", ":8080", "`HOST:PORT` to listen for HTTP requests")
 		zone       = flag.String("zone", "lan", "`ZONE` domain name to serve, without preceding dot")
 		hostname   = flag.String("host", "localhost", "Hostname `HOSTNAME` representing this DNS server itself")
+		save       = flag.String("save", "", "Save or restore sources from/to file `F`")
 		info       = flag.Bool("info", false, "Show log messages on client requests")
 		ttl        = flag.Duration("ttl", 1*time.Hour, "Duration `D` to be cached for DNS responses")
 	)
@@ -25,8 +26,7 @@ func main() {
 	}
 	flag.Parse()
 
-	srv := newServer(*info, *ttl, host(*zone), host(*hostname))
-	srv.start()
+	srv := newServer(*save, *info, *ttl, host(*zone), host(*hostname))
 
 	go srv.serveDNS(*dnsListen)
 	log.Printf("[info] http: listening on %s", *httpListen)
