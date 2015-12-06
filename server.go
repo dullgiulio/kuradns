@@ -124,7 +124,7 @@ func (s *server) restoreSources() {
 	s.fname = ""
 	s.mux.Unlock()
 
-	var tmp map[string]struct {
+	var tmp []struct {
 		Name string
 		Conf map[string]string
 	}
@@ -160,18 +160,20 @@ func (s *server) persistSources() {
 		return
 	}
 	defer f.Close()
-	tmp := make(map[string]struct {
+	tmp := make([]struct {
 		Name string
 		Conf map[string]string
-	})
-	for k, v := range s.srcsReq {
-		tmp[k] = struct {
+	}, len(s.srcsReq))
+    var i int
+	for _, v := range s.srcsReq {
+		tmp[i] = struct {
 			Name string
 			Conf map[string]string
 		}{
 			Name: v.name,
 			Conf: v.conf.Map(),
 		}
+        i++
 	}
 	if err := json.NewEncoder(f).Encode(&tmp); err != nil {
 		log.Printf("cannot persist sources: %s", err)
