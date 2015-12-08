@@ -54,6 +54,7 @@ func (r request) send(ch chan<- request) error {
 	case ch <- r:
 		return nil
 	default:
+		close(r.resp)
 		return errQueueFull
 	}
 }
@@ -72,40 +73,39 @@ func (r request) String() string {
 }
 
 type server struct {
-	verbose bool
-	fname   string
-	// sources of requests status
-	srcsReq sources
-	// sources of satisfied status
-	srcs      sources
-	repo      repository
-	zone      host
-	self      host
-	ttl       time.Duration
-	respPool  sync.Pool
-	mux       sync.RWMutex
-	requests  chan request
-	processes chan request
+	verbose  bool
+	fname    string
+	srcs     sources
+	repo     repository
+	zone     host
+	self     host
+	ttl      time.Duration
+	respPool sync.Pool
+	mux      sync.RWMutex
+	requests chan request
 }
 
 func newServer(fname string, verbose bool, ttl time.Duration, zone, self host) *server {
 	s := &server{
-		fname:     fname,
-		zone:      zone,
-		self:      self,
-		ttl:       ttl,
-		verbose:   verbose,
-		requests:  make(chan request),
-		processes: make(chan request, 10), // TODO: buffering is a param
-		repo:      makeRepository(),
-		srcsReq:   makeSources(),
-		srcs:      makeSources(),
+		fname:    fname,
+		zone:     zone,
+		self:     self,
+		ttl:      ttl,
+		verbose:  verbose,
+		requests: make(chan request, 10), // TODO: buffering is a param
+		repo:     makeRepository(),
+		srcs:     makeSources(),
 	}
-	s.start()
+	go s.run()
 	if fname != "" {
 		s.restoreSources()
 	}
 	return s
+}
+
+type jsonSource struct {
+	Name string
+	Conf map[string]string
 }
 
 func (s *server) restoreSources() {
@@ -124,15 +124,12 @@ func (s *server) restoreSources() {
 	s.fname = ""
 	s.mux.Unlock()
 
-	var tmp []struct {
-		Name string
-		Conf map[string]string
-	}
-	if err := json.NewDecoder(f).Decode(&tmp); err != nil {
+	var jsrcs []jsonSource
+	if err := json.NewDecoder(f).Decode(&jsrcs); err != nil {
 		log.Printf("cannot restore sources, error decoding JSON: %s", err)
 		return
 	}
-	for _, v := range tmp {
+	for _, v := range jsrcs {
 		stype := v.Conf["source.type"]
 		name := v.Name
 		if err := s.handleSourceAdd(name, stype, cfg.FromMap(v.Conf)); err != nil {
@@ -160,22 +157,16 @@ func (s *server) persistSources() {
 		return
 	}
 	defer f.Close()
-	tmp := make([]struct {
-		Name string
-		Conf map[string]string
-	}, len(s.srcsReq))
-    var i int
-	for _, v := range s.srcsReq {
-		tmp[i] = struct {
-			Name string
-			Conf map[string]string
-		}{
+	var i int
+	jsrcs := make([]jsonSource, len(s.srcs))
+	for _, v := range s.srcs {
+		jsrcs[i] = jsonSource{
 			Name: v.name,
 			Conf: v.conf.Map(),
 		}
-        i++
+		i++
 	}
-	if err := json.NewEncoder(f).Encode(&tmp); err != nil {
+	if err := json.NewEncoder(f).Encode(&jsrcs); err != nil {
 		log.Printf("cannot persist sources: %s", err)
 		return
 	}
@@ -193,12 +184,13 @@ func (s *server) setRepo(repo repository) {
 	s.mux.Unlock()
 }
 
-func (s *server) runWorker() {
-	for req := range s.processes {
+func (s *server) run() {
+	for req := range s.requests {
 		repo := s.cloneRepo()
 		switch req.rtype {
 		case reqtypeAdd:
 			if s.srcs.has(req.src.name) {
+				req.fail(fmt.Errorf("%s: source already exists", req.String()))
 				log.Printf("[error] sources: not added existing source %s", req.src.name)
 				continue
 			}
@@ -210,6 +202,7 @@ func (s *server) runWorker() {
 			}
 		case reqtypeDel:
 			if !s.srcs.has(req.src.name) {
+				req.fail(fmt.Errorf("%s: source not found", req.String()))
 				log.Printf("[error] sources: not removed non-existing source %s", req.src.name)
 				continue
 			}
@@ -221,50 +214,15 @@ func (s *server) runWorker() {
 			}
 		case reqtypeUp:
 			if !s.srcs.has(req.src.name) {
+				req.fail(fmt.Errorf("%s: source not found", req.String()))
 				log.Printf("[error] sources: not updated non-existing source %s", req.src.name)
 				continue
 			}
 			repo.deleteSource(req.src)
 			repo.updateSource(req.src, s.zone, s.ttl)
 			s.setRepo(repo)
-			s.srcs[req.src.name] = req.src
 			if s.verbose {
 				log.Printf("[info] sources: updated source %s", req.src.name)
-			}
-		}
-	}
-}
-
-func (s *server) runHandler() {
-	for req := range s.requests {
-		switch req.rtype {
-		case reqtypeAdd:
-			if s.srcsReq.has(req.src.name) {
-				req.fail(fmt.Errorf("%s: source already exists", req.String()))
-				continue
-			}
-			if err := req.send(s.processes); err != nil {
-				req.fail(fmt.Errorf("cannot process %s: %s", req.String(), err))
-				continue
-			}
-			s.srcsReq[req.src.name] = req.src
-		case reqtypeDel:
-			if !s.srcsReq.has(req.src.name) {
-				req.fail(fmt.Errorf("%s: source not found", req.String()))
-				continue
-			}
-			if err := req.send(s.processes); err != nil {
-				req.fail(fmt.Errorf("cannot process %s: %s", req.String(), err))
-				continue
-			}
-			delete(s.srcsReq, req.src.name)
-		case reqtypeUp:
-			if !s.srcsReq.has(req.src.name) {
-				req.fail(fmt.Errorf("%s: source not found", req.String()))
-				continue
-			}
-			if err := req.send(s.processes); err != nil {
-				req.fail(fmt.Errorf("cannot process %s: %s", req.String(), err))
 			}
 		default:
 			req.fail(errUnknownReqType)
@@ -272,9 +230,4 @@ func (s *server) runHandler() {
 		s.persistSources()
 		req.done()
 	}
-}
-
-func (s *server) start() {
-	go s.runHandler()
-	go s.runWorker()
 }

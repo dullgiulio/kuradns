@@ -31,7 +31,9 @@ func (s *server) handleSourceAdd(name, gentype string, conf *cfg.Config) error {
 
 	req := makeRequest(src, reqtypeAdd)
 
-	s.requests <- req
+	if err := req.send(s.requests); err != nil {
+		return fmt.Errorf("cannot process %s: %s", req.String(), err)
+	}
 	err = <-req.resp
 	if err != nil {
 		return fmt.Errorf("cannot add source: %s", err)
@@ -43,7 +45,9 @@ func (s *server) handleSourceDelete(name string) error {
 	src := newSource(name, nil)
 	req := makeRequest(src, reqtypeDel)
 
-	s.requests <- req
+	if err := req.send(s.requests); err != nil {
+		return fmt.Errorf("cannot process %s: %s", req.String(), err)
+	}
 	err := <-req.resp
 	if err != nil {
 		return fmt.Errorf("cannot remove source: %s", err)
@@ -55,7 +59,9 @@ func (s *server) handleSourceUpdate(name string) error {
 	src := newSource(name, nil)
 	req := makeRequest(src, reqtypeUp)
 
-	s.requests <- req
+	if err := req.send(s.requests); err != nil {
+		return fmt.Errorf("cannot process %s: %s", req.String(), err)
+	}
 	err := <-req.resp
 	if err != nil {
 		return fmt.Errorf("cannot update source: %s", err)
