@@ -104,7 +104,9 @@ func newServer(fname string, verbose bool, ttl time.Duration, zone, self host) *
 }
 
 type jsonSource struct {
+	// Name of the source
 	Name string
+	// All configuration options as key value pairs
 	Conf map[string]string
 }
 

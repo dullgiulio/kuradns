@@ -230,6 +230,7 @@ func (r repository) WriteTo(w io.Writer) error {
 		if len(rs.recs) == 0 {
 			continue
 		}
+		// TODO: Display IP not aliased target.
 		if _, err := fmt.Fprintf(w, "%s\t%s\n", rs.recs[0].target(), key); err != nil {
 			return err
 		}

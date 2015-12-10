@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/miekg/dns"
@@ -53,9 +54,13 @@ func (s *server) handleDnsNS(name host) *dns.Msg {
 	return m
 }
 
+func (server) logDns(w dns.ResponseWriter, level, format string, params ...interface{}) {
+	log.Printf("[%s] dns: %s(%s): %s", level, w.RemoteAddr().Network(), w.RemoteAddr().String(), fmt.Sprintf(format, params...))
+}
+
 func (s *server) writeDnsMsg(w dns.ResponseWriter, m *dns.Msg) {
 	if err := w.WriteMsg(m); err != nil {
-		log.Printf("[error] dns: %s: error writing DNS response packet: %s", w.RemoteAddr(), err)
+		s.logDns(w, "error", "error writing DNS response packet: %s", err)
 	}
 }
 
@@ -63,7 +68,7 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 	switch r.Question[0].Qtype {
 	case dns.TypeANY, dns.TypeA, dns.TypeAAAA:
 		if s.verbose {
-			log.Printf("[info] dns: request for A/ANY %s", r.Question[0].Name)
+			s.logDns(w, "info", "request for A/ANY %s", r.Question[0].Name)
 		}
 
 		m := s.respPool.Get().(*dns.Msg)
@@ -75,7 +80,7 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 		s.respPool.Put(m)
 	case dns.TypeCNAME:
 		if s.verbose {
-			log.Printf("[info] dns: request for CNAME %s", r.Question[0].Name)
+			s.logDns(w, "info", "request for CNAME %s", r.Question[0].Name)
 		}
 
 		m := s.respPool.Get().(*dns.Msg)
@@ -87,14 +92,14 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 		s.respPool.Put(m)
 	case dns.TypeNS:
 		if s.verbose {
-			log.Print("[info] dns: request for NS %s", r.Question[0].Name)
+			s.logDns(w, "info", "request for NS %s", r.Question[0].Name)
 		}
 
 		m := s.handleDnsNS(host(r.Question[0].Name))
 		m.SetReply(m)
 		s.writeDnsMsg(w, m)
 	default:
-		log.Printf("[error] dns: unhandled request: %s", r.Question[0].Qtype)
+		s.logDns(w, "error", "unhandled request: %s", r.Question[0].Qtype)
 	}
 }
 

@@ -129,6 +129,7 @@ func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 	conf.Put("dns.self", s.self.browser())
 
 	switch r.URL.Path {
+	// TODO: Add /source/list"
 	case "/source/add":
 		sname, err := s.getFromConf(conf, "source.name")
 		if err != nil {
@@ -171,7 +172,7 @@ func (s *server) httpHandleGET(w http.ResponseWriter, r *http.Request) error {
 func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var err error
 	if s.verbose {
-		log.Printf("[info] http: request %s %s", r.Method, r.URL.Path)
+		log.Printf("[info] http: tcp(%s): request %s %s", r.RemoteAddr, r.Method, r.URL.Path)
 	}
 	switch r.Method {
 	case "POST", "PUT":
