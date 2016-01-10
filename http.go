@@ -83,6 +83,20 @@ func (s *server) handleDnsDump(w http.ResponseWriter, r *http.Request) error {
 	return wb.Flush()
 }
 
+func (s *server) handleSourceList(w http.ResponseWriter, r *http.Request) error {
+	w.Header().Set("Content-Type", "text/plain")
+	wb := bufio.NewWriter(w)
+
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+
+	for _, src := range s.srcs {
+		fmt.Fprintf(wb, "%s %s\n", src.name, src.conf.GetVal("source.type", "unknown"))
+	}
+
+	return wb.Flush()
+}
+
 // take last value in case of duplicates
 func (s *server) configFromForm(cf *cfg.Config, form url.Values) error {
 	for k, vs := range form {
@@ -129,7 +143,8 @@ func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 	conf.Put("dns.self", s.self.browser())
 
 	switch r.URL.Path {
-	// TODO: Add /source/list"
+	case "/source/list":
+		return s.handleSourceList(w, r)
 	case "/source/add":
 		sname, err := s.getFromConf(conf, "source.name")
 		if err != nil {
