@@ -143,8 +143,6 @@ func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 	conf.Put("dns.self", s.self.browser())
 
 	switch r.URL.Path {
-	case "/source/list":
-		return s.handleSourceList(w, r)
 	case "/source/add":
 		sname, err := s.getFromConf(conf, "source.name")
 		if err != nil {
@@ -174,6 +172,8 @@ func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 func (s *server) httpHandleGET(w http.ResponseWriter, r *http.Request) error {
 	// TODO: Help, status, etc.
 	switch r.URL.Path {
+	case "/source/list":
+		return s.handleSourceList(w, r)
 	case "/dns/dump":
 		return s.handleDnsDump(w, r)
 	case "/favicon.ico":
