@@ -13,7 +13,6 @@ func (s *server) newDnsRR(name host) dns.RR {
 			Name:   name.dns(),
 			Rrtype: dns.TypeNS,
 			Class:  dns.ClassINET,
-			Ttl:    uint32(s.ttl.Seconds()),
 		},
 		Ns: s.self.dns(),
 	}
@@ -26,7 +25,8 @@ func (s *server) handleDnsA(name host, m *dns.Msg) {
 	// Important: all things set here must be overwritten
 	rec := s.repo.get(name)
 	if rec != nil {
-		m.Answer = append(m.Answer, rec.a)
+		m.Answer = make([]dns.RR, 1)
+		m.Answer[0] = rec.a
 		m.MsgHdr.Rcode = dns.RcodeSuccess
 	} else {
 		m.Answer = nil
