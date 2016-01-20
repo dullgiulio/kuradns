@@ -1,35 +1,34 @@
 package gen
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/dullgiulio/kuradns/cfg"
 )
 
-// staticgen is a generator that yields constant entries. Used for testing.
+// staticgen is a generator that yealds a single static entry
 type staticgen struct {
-	zone string
-	ch   chan RawEntry
+	ch chan RawEntry
 }
 
-func newStaticgen(c *cfg.Config) *staticgen {
+func newStaticgen(c *cfg.Config) (*staticgen, error) {
+	key, ok := c.Get("config.key")
+	if !ok {
+		return nil, errors.New("key not specified")
+	}
+	val, ok := c.Get("config.val")
+	if !ok {
+		return nil, errors.New("val not specified")
+	}
 	s := &staticgen{
-		zone: "." + c.GetVal("dns.zone", "lan"),
-		ch:   make(chan RawEntry),
+		ch: make(chan RawEntry),
 	}
-	go s.run()
-	return s
+	go s.run(key, val)
+	return s, nil
 }
 
-func (s *staticgen) run() {
-	entries := []RawEntry{
-		MakeRawEntry(fmt.Sprintf("localhost%s", s.zone), "127.0.0.1"),
-		MakeRawEntry(fmt.Sprintf("some.host%s", s.zone), "localhost"),
-		MakeRawEntry(fmt.Sprintf("invalid-host%s", s.zone), "invalid.host"),
-	}
-	for _, entry := range entries {
-		s.ch <- entry
-	}
+func (s *staticgen) run(key, val string) {
+	s.ch <- MakeRawEntry(key, val)
 	close(s.ch)
 }
 
