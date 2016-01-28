@@ -49,7 +49,10 @@ func newMysql(c *cfg.Config) (*mysql, error) {
 		rows: rows,
 	}
 	// rows is closed in run()
-	go m.run()
+	go func(){
+		m.run()
+		db.Close()
+	}()
 	return m, nil
 }
 
