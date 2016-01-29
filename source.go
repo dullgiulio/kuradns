@@ -1,8 +1,6 @@
 package main
 
 import (
-	"io"
-
 	"github.com/dullgiulio/kuradns/cfg"
 	"github.com/dullgiulio/kuradns/gen"
 )
@@ -22,11 +20,6 @@ func makeSources() sources {
 func (s sources) has(k string) bool {
 	_, ok := s[k]
 	return ok
-}
-
-func (s sources) WriteTo(w io.Writer) error {
-	// TODO
-	return nil
 }
 
 func newSource(name string, conf *cfg.Config) *source {
