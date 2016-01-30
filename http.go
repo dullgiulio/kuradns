@@ -132,6 +132,7 @@ func (s *server) parseBodyData(w http.ResponseWriter, r *http.Request) (*cfg.Con
 }
 
 func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
+	var err error
 	conf, err := s.parseBodyData(w, r)
 	if err != nil {
 		return err
@@ -149,21 +150,26 @@ func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return err
 		}
-		return s.handleSourceAdd(sname, stype, conf)
+		err = s.handleSourceAdd(sname, stype, conf)
 	case "/source/delete":
 		sname, err := s.getFromConf(conf, "source.name")
 		if err != nil {
 			return err
 		}
-		return s.handleSourceDelete(sname)
+		err = s.handleSourceDelete(sname)
 	case "/source/update":
 		sname, err := s.getFromConf(conf, "source.name")
 		if err != nil {
 			return err
 		}
-		return s.handleSourceUpdate(sname)
+		err = s.handleSourceUpdate(sname)
+	default:
+		return errUnhandledURL
 	}
-	return errUnhandledURL
+	if err == nil {
+		s.update()
+	}
+	return err
 }
 
 func (s *server) httpHandleGET(w http.ResponseWriter, r *http.Request) error {

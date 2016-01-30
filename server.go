@@ -79,6 +79,7 @@ type server struct {
 	repo     repository
 	zone     host
 	self     host
+	soa      *soa
 	ttl      time.Duration
 	respPool sync.Pool
 	mux      sync.RWMutex
@@ -93,6 +94,7 @@ func newServer(fname string, verbose bool, ttl time.Duration, zone, self host) *
 		ttl:      ttl,
 		verbose:  verbose,
 		requests: make(chan request, 10), // TODO: buffering is a param
+		soa:      newSoa(zone, self),
 		repo:     makeRepository(),
 		srcs:     makeSources(),
 	}
