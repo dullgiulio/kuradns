@@ -1,3 +1,7 @@
+// Copyright 2016 Giulio Iotti. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package gen
 
 import (
@@ -49,7 +53,7 @@ func newMysql(c *cfg.Config) (*mysql, error) {
 		rows: rows,
 	}
 	// rows is closed in run()
-	go func(){
+	go func() {
 		m.run()
 		db.Close()
 	}()
