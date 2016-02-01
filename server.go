@@ -16,27 +16,36 @@ import (
 	"github.com/dullgiulio/kuradns/cfg"
 )
 
+// Type of request
 type reqtype int
 
 const (
+	// Add a source
 	reqtypeAdd reqtype = iota
+	// Remove/delete a source
 	reqtypeDel
+	// Update a source
 	reqtypeUp
 )
 
 var (
-	errQueueFull      = errors.New("queue full")
+	// Error returned when too many requests are queued for processing.
+	errQueueFull = errors.New("queue full")
+	// Invalid request type.
 	errUnknownReqType = errors.New("unknown request type")
 )
 
+// response represents the value returned from a server operation.
 type response error
 
+// request includes a channel to get the response, the source to work on and the type of request.
 type request struct {
 	resp  chan response
 	src   *source
 	rtype reqtype
 }
 
+// makeRequest allocates a request of type t and source src.
 func makeRequest(src *source, t reqtype) request {
 	return request{
 		src:   src,
@@ -45,14 +54,17 @@ func makeRequest(src *source, t reqtype) request {
 	}
 }
 
+// done marks a request as processed.
 func (r request) done() {
 	close(r.resp)
 }
 
+// fail marks a request as processed with error.
 func (r request) fail(err error) {
 	r.resp <- err
 }
 
+// send tries to queue a request. An error is returned if the queue is full.
 func (r request) send(ch chan<- request) error {
 	select {
 	case ch <- r:
@@ -63,6 +75,7 @@ func (r request) send(ch chan<- request) error {
 	}
 }
 
+// String representation for a request
 func (r request) String() string {
 	op := "unk"
 	switch r.rtype {
@@ -76,6 +89,8 @@ func (r request) String() string {
 	return fmt.Sprintf("%s '%s'", op, r.src.name)
 }
 
+// server is the single instance that manages all accesses to the repository and
+// coordinates access to it, between both the DNS and HTTP interfaces.
 type server struct {
 	verbose  bool
 	fname    string
@@ -90,6 +105,9 @@ type server struct {
 	requests chan request
 }
 
+// newServer allocates a server instance. fname is the file where the session is restored
+// and subsequently persisted; verbose controls the logging level; ttl the duration to
+// apply to all DNS records served; self is the domain name of the local host.
 func newServer(fname string, verbose bool, ttl time.Duration, zone, self host) *server {
 	s := &server{
 		fname:    fname,
@@ -109,6 +127,7 @@ func newServer(fname string, verbose bool, ttl time.Duration, zone, self host) *
 	return s
 }
 
+// jsonSource represent the persisted list of sources
 type jsonSource struct {
 	// Name of the source
 	Name string
@@ -116,6 +135,9 @@ type jsonSource struct {
 	Conf map[string]string
 }
 
+// restoreSources reads the JSON file of the sources and restartes
+// all sources found. If starting a source failed, an error is logged
+// and the source ignored.
 func (s *server) restoreSources() {
 	f, err := os.Open(s.fname)
 	if err != nil {
@@ -151,6 +173,8 @@ func (s *server) restoreSources() {
 	s.mux.Unlock()
 }
 
+// persistSources writes to fname the JSON with the sources
+// currently configured and their configuration.
 func (s *server) persistSources() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
@@ -180,18 +204,22 @@ func (s *server) persistSources() {
 	}
 }
 
+// cloneRepo safely creates and returns a full copy of the current repository.
 func (s *server) cloneRepo() repository {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	return s.repo.clone()
 }
 
+// setRepo atomically changes the repository used by the server with repo.
 func (s *server) setRepo(repo repository) {
 	s.mux.Lock()
 	s.repo = repo
 	s.mux.Unlock()
 }
 
+// run serves requests queued on the requests channel. run logs errors and information if
+// server is configured as verbose. run does not return.
 func (s *server) run() {
 	for req := range s.requests {
 		repo := s.cloneRepo()

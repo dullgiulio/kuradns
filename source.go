@@ -9,23 +9,28 @@ import (
 	"github.com/dullgiulio/kuradns/gen"
 )
 
+// sources is the collection of source objects keyed by name.
 type sources map[string]*source
 
+// source is the generator of DNS entries with its configuration and name.
 type source struct {
 	name string
 	conf *cfg.Config
 	gen  gen.Generator
 }
 
+// makeSources allocates a sources collection.
 func makeSources() sources {
 	return make(map[string]*source)
 }
 
+// has returns true if the sources collection contains a source named k.
 func (s sources) has(k string) bool {
 	_, ok := s[k]
 	return ok
 }
 
+// newSource allocates a source.
 func newSource(name string, conf *cfg.Config) *source {
 	return &source{
 		name: name,
@@ -33,6 +38,7 @@ func newSource(name string, conf *cfg.Config) *source {
 	}
 }
 
+// String representation of a source is its name.
 func (s source) String() string {
 	return s.name
 }
