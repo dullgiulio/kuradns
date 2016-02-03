@@ -18,6 +18,9 @@ import (
 	"github.com/dullgiulio/kuradns/gen"
 )
 
+// A record containse the source and destination from the generator,
+// a precomputed A and CNAME record and a pointer to the source that
+// generated this entry.
 type record struct {
 	shost, dhost host
 	a            dns.RR
@@ -25,6 +28,7 @@ type record struct {
 	source       *source
 }
 
+// Allocate a new record. For the A record, a resoled IP is needed.
 func makeRecord(shost, dhost host, cname bool, ip net.IP, ttl time.Duration, src *source) record {
 	r := record{
 		shost: shost,
@@ -54,26 +58,32 @@ func makeRecord(shost, dhost host, cname bool, ip net.IP, ttl time.Duration, src
 	return r
 }
 
+// target returns the human DNS representation of the destination/target or a record.
 func (r record) target() string {
 	return r.dhost.browser()
 }
 
+// String representation of a record.
 func (r record) String() string {
 	return fmt.Sprintf("[%s %s]", r.source.String(), r.shost.dns())
 }
 
+// Collection of records.
 type records struct {
 	recs []record
 }
 
+// Allocate a new collection of records.
 func newRecords() *records {
 	return &records{recs: make([]record, 0)}
 }
 
+// String representation of a collection of records.
 func (r *records) String() string {
 	return fmt.Sprintf("%s", r.recs)
 }
 
+// deleteSource removes all record that were added by source s.
 func (r *records) deleteSource(s *source) {
 	res := r.recs[:0]
 	for _, rec := range r.recs {
@@ -84,10 +94,12 @@ func (r *records) deleteSource(s *source) {
 	r.recs = res
 }
 
+// pushFront adds a record to the collection.
 func (r *records) pushFront(rec record) {
 	r.recs = append([]record{rec}, r.recs...)
 }
 
+// clone is the utility function to duplicate a collection.
 func (r *records) clone() *records {
 	nr := &records{
 		recs: make([]record, len(r.recs)),
@@ -98,26 +110,34 @@ func (r *records) clone() *records {
 	return nr
 }
 
+// A host is a FQDN or common representation of a DNS address.
 type host string
 
+// browser returns the FQDN without the trailing dot.
 func (h host) browser() string {
 	return strings.TrimSuffix(string(h), ".")
 }
 
+// dns returns the FQDN.
 func (h host) dns() string {
 	return dns.Fqdn(string(h))
 }
 
+// hasSuffix returns true if h has suffix h2.
 func (h host) hasSuffix(h2 host) bool {
 	return strings.HasSuffix(h.browser(), h2.browser())
 }
 
+// A repository maps hosts to the records that can resolve them (record collection).
+// repository is not thread safe.
 type repository map[string]*records
 
+// makeRepository allocates a new repository.
 func makeRepository() repository {
 	return make(map[string]*records)
 }
 
+// add inserts record rec for host as the default record.
 func (r repository) add(host host, rec record) {
 	key := host.browser()
 	recs, ok := r[key]
@@ -128,12 +148,14 @@ func (r repository) add(host host, rec record) {
 	r[key] = recs
 }
 
+// deleteSource removes all records that were inserted by source s. 
 func (r repository) deleteSource(s *source) {
 	for _, recs := range r {
 		recs.deleteSource(s)
 	}
 }
 
+// updateSource removes and generate again all records for source src.
 func (r repository) updateSource(src *source, zone host, ttl time.Duration) {
 	res := newResolver(src, ttl, 6)
 
@@ -158,6 +180,7 @@ func (r repository) updateSource(src *source, zone host, ttl time.Duration) {
 	}
 }
 
+// resolver is a worker that resolves strings into IPs.
 type resolver struct {
 	cname    bool
 	src      *source
@@ -167,6 +190,8 @@ type resolver struct {
 	wg       sync.WaitGroup
 }
 
+// Allocate a new resolver. Subsequent records will be generated with ttl set as given here.
+// workers is number of workers to be run in parallel.
 func newResolver(src *source, ttl time.Duration, workers int) *resolver {
 	r := &resolver{
 		src:      src,
@@ -185,6 +210,7 @@ func newResolver(src *source, ttl time.Duration, workers int) *resolver {
 	return r
 }
 
+// run resolves incoming entries and emits records. It is called automatically.
 func (r *resolver) run() {
 	for rentry := range r.rentries {
 		var cname bool
@@ -204,6 +230,7 @@ func (r *resolver) run() {
 	r.wg.Done()
 }
 
+// lookup is a utility to lookup an IP for host (standard format).
 func lookup(host string) (net.IP, error) {
 	var ip net.IP
 	iplist, err := net.LookupIP(host)
@@ -213,6 +240,7 @@ func lookup(host string) (net.IP, error) {
 	return ip, err
 }
 
+// get returns the default record for host or nil if not found.
 func (r repository) get(host host) *record {
 	rs, ok := r[host.browser()]
 	if !ok {
@@ -221,6 +249,7 @@ func (r repository) get(host host) *record {
 	return &rs.recs[0]
 }
 
+// clone duplicates the whole repository.
 func (r repository) clone() repository {
 	nr := makeRepository()
 	for k, recs := range r {
@@ -229,6 +258,7 @@ func (r repository) clone() repository {
 	return nr
 }
 
+// WriteTo writes the repository contents in hosts format to w.
 func (r repository) WriteTo(w io.Writer) error {
 	for key, rs := range r {
 		if len(rs.recs) == 0 {
