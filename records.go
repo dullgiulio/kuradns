@@ -148,7 +148,7 @@ func (r repository) add(host host, rec record) {
 	r[key] = recs
 }
 
-// deleteSource removes all records that were inserted by source s. 
+// deleteSource removes all records that were inserted by source s.
 func (r repository) deleteSource(s *source) {
 	for _, recs := range r {
 		recs.deleteSource(s)
