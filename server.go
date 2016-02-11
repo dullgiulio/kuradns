@@ -254,11 +254,12 @@ func (s *server) run() {
 				log.Printf("[error] sources: not updated non-existing source %s", req.src.name)
 				continue
 			}
-			repo.deleteSource(req.src)
-			repo.updateSource(req.src, s.zone, s.ttl)
+			src := s.srcs[req.src.name]
+			repo.deleteSource(src)
+			repo.updateSource(src, s.zone, s.ttl)
 			s.setRepo(repo)
 			if s.verbose {
-				log.Printf("[info] sources: updated source %s", req.src.name)
+				log.Printf("[info] sources: updated source %s", src.name)
 			}
 		default:
 			req.fail(errUnknownReqType)
