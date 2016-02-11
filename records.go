@@ -84,14 +84,20 @@ func (r *records) String() string {
 }
 
 // deleteSource removes all record that were added by source s.
-func (r *records) deleteSource(s *source) {
-	res := r.recs[:0]
+// Returns the number of records left.
+func (r *records) deleteSource(s *source) int {
+	res := make([]record, 0)
 	for _, rec := range r.recs {
 		if rec.source.name != s.name {
 			res = append(res, rec)
 		}
 	}
+	// Free up empty arrays
+	if len(res) == 0 {
+		res = nil
+	}
 	r.recs = res
+	return len(r.recs)
 }
 
 // pushFront adds a record to the collection.
@@ -149,9 +155,17 @@ func (r repository) add(host host, rec record) {
 }
 
 // deleteSource removes all records that were inserted by source s.
+// Entries that result in no records are removed completely.
 func (r repository) deleteSource(s *source) {
-	for _, recs := range r {
-		recs.deleteSource(s)
+	emptyKeys := make([]string, 0)
+	for k, recs := range r {
+		if recs.deleteSource(s) == 0 {
+			emptyKeys = append(emptyKeys, k)
+		}
+	}
+	// remove entries which have no values
+	for _, k := range emptyKeys {
+		delete(r, k)
 	}
 }
 
