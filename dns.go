@@ -37,7 +37,7 @@ func (s *soa) update() {
 	defer s.mux.Unlock()
 
 	tstamp := uint32(time.Now().Unix())
-	refresh := 86400
+	refresh := 3600
 	retry := refresh
 	expire := refresh
 	minttl := 100
@@ -116,6 +116,21 @@ func (s *server) handleDnsNS(name host) *dns.Msg {
 	return m
 }
 
+// handleDnsMX writes a MX record pointing to s.host into m for host name.
+func (s *server) handleDnsMX(name host, m *dns.Msg) {
+	r := new(dns.MX)
+	r.Hdr = dns.RR_Header{
+		Name:   name.dns(),
+		Rrtype: dns.TypeMX,
+		Class:  dns.ClassINET,
+		Ttl:    3600,
+	}
+	r.Preference = 10
+	r.Mx = s.self.dns()
+	m.Answer = make([]dns.RR, 1)
+	m.Answer[0] = r
+}
+
 // logDns is an utility to write a log message as coming from the DNS subsystem.
 func (server) logDns(w dns.ResponseWriter, level, format string, params ...interface{}) {
 	log.Printf("[%s] dns: %s(%s): %s", level, w.RemoteAddr().Network(), w.RemoteAddr().String(), fmt.Sprintf(format, params...))
@@ -164,7 +179,16 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 		}
 
 		m := s.handleDnsNS(host(r.Question[0].Name))
-		m.SetReply(m)
+		m.SetReply(r)
+		s.writeDnsMsg(w, m)
+	case dns.TypeMX:
+		if s.verbose {
+			s.logDns(w, "info", "request for MX %s", r.Question[0].Name)
+		}
+
+		m := new(dns.Msg)
+		s.handleDnsMX(host(r.Question[0].Name), m)
+		m.SetReply(r)
 		s.writeDnsMsg(w, m)
 	default:
 		s.logDns(w, "error", "unhandled request: %s", r.Question[0].Qtype)
