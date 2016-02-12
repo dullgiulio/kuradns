@@ -222,7 +222,6 @@ func (s *server) setRepo(repo repository) {
 // server is configured as verbose. run does not return.
 func (s *server) run() {
 	for req := range s.requests {
-		repo := s.cloneRepo()
 		switch req.rtype {
 		case reqtypeAdd:
 			if s.srcs.has(req.src.name) {
@@ -230,6 +229,7 @@ func (s *server) run() {
 				log.Printf("[error] sources: not added existing source %s", req.src.name)
 				continue
 			}
+			repo := s.cloneRepo()
 			repo.updateSource(req.src, s.zone, s.ttl)
 			s.setRepo(repo)
 			s.srcs[req.src.name] = req.src
@@ -242,6 +242,7 @@ func (s *server) run() {
 				log.Printf("[error] sources: not removed non-existing source %s", req.src.name)
 				continue
 			}
+			repo := s.cloneRepo()
 			repo.deleteSource(req.src)
 			s.setRepo(repo)
 			delete(s.srcs, req.src.name)
@@ -255,6 +256,7 @@ func (s *server) run() {
 				continue
 			}
 			src := s.srcs[req.src.name]
+			repo := s.cloneRepo()
 			repo.deleteSource(src)
 			repo.updateSource(src, s.zone, s.ttl)
 			s.setRepo(repo)
