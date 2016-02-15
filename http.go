@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/dullgiulio/kuradns/cfg"
-	"github.com/dullgiulio/kuradns/gen"
 )
 
 var errUnhandledURL = errors.New("unhandled URL")
@@ -27,18 +26,16 @@ func (s *server) handleHttpError(w http.ResponseWriter, r *http.Request, err err
 
 func (s *server) handleSourceAdd(name, gentype string, conf *cfg.Config) error {
 	src := newSource(name, conf)
-	gen, err := gen.MakeGenerator(gentype, conf)
-	if err != nil {
+	if err := src.initGenerator(); err != nil {
 		return fmt.Errorf("cannot start generator: %s", err)
 	}
-	src.gen = gen
 
 	req := makeRequest(src, reqtypeAdd)
 
 	if err := req.send(s.requests); err != nil {
 		return fmt.Errorf("cannot process %s: %s", req.String(), err)
 	}
-	if err = <-req.resp; err != nil {
+	if err := <-req.resp; err != nil {
 		return fmt.Errorf("cannot add source: %s", err)
 	}
 	return nil

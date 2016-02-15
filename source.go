@@ -5,6 +5,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/dullgiulio/kuradns/cfg"
 	"github.com/dullgiulio/kuradns/gen"
 )
@@ -38,7 +40,21 @@ func newSource(name string, conf *cfg.Config) *source {
 	}
 }
 
+// initGenerator initializes the generator for a new production of key/values.
+func (s *source) initGenerator() error {
+	var err error
+	stype, ok := s.conf.Get("source.type")
+	if !ok {
+		return fmt.Errorf("cannot start generator %s: key source.type not found", s.name)
+	}
+	s.gen, err = gen.MakeGenerator(stype, s.conf)
+	if err != nil {
+		return fmt.Errorf("cannot start generator: %s", err)
+	}
+	return nil
+}
+
 // String representation of a source is its name.
-func (s source) String() string {
+func (s *source) String() string {
 	return s.name
 }
