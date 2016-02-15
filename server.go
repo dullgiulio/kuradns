@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dullgiulio/kuradns/cfg"
+	"github.com/dullgiulio/kuradns/gen"
 )
 
 // Type of request
@@ -256,6 +257,18 @@ func (s *server) run() {
 				continue
 			}
 			src := s.srcs[req.src.name]
+			conf := src.conf
+			stype, err := s.getFromConf(conf, "source.type")
+			if err != nil {
+				req.fail(fmt.Errorf("cannot restart source %s: %s", req.src.name, err))
+				continue
+			}
+			gen, err := gen.MakeGenerator(stype, conf)
+			if err != nil {
+				req.fail(fmt.Errorf("cannot restart generator: %s", err))
+				continue
+			}
+			src.gen = gen
 			repo := s.cloneRepo()
 			repo.deleteSource(src)
 			repo.updateSource(src, s.zone, s.ttl)
