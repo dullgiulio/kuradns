@@ -178,6 +178,8 @@ func (r repository) updateSource(src *source, zone host, ttl time.Duration) {
 			rentry := src.gen.Generate()
 			if rentry.IsEmpty() {
 				close(res.rentries)
+				// Free up resources used by the generator
+				src.gen = nil
 				return
 			}
 			src := host(rentry.Source)

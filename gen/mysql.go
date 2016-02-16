@@ -68,6 +68,10 @@ func (m *mysql) run() {
 			log.Printf("[dns] mysql: error reading rows: %s", err)
 			continue
 		}
+		if entry.Source == "" && entry.Target == "" {
+			log.Printf("[dns] mysql: skipping empty entry from database")
+			continue
+		}
 		m.ch <- entry
 	}
 	close(m.ch)
