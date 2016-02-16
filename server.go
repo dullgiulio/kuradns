@@ -270,6 +270,8 @@ func (s *server) run() {
 			}
 		default:
 			req.fail(errUnknownReqType)
+			log.Printf("[error] unknown request type %d", req.rtype)
+			continue
 		}
 		s.persistSources()
 		req.done()
