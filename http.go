@@ -114,6 +114,9 @@ func (s *server) configFromJSON(cf *cfg.Config, r io.Reader) error {
 
 func (s *server) getFromConf(cf *cfg.Config, key string) (string, error) {
 	if v, ok := cf.Get(key); ok {
+		if v == "" {
+			return "", fmt.Errorf("required parameter %s is empty", key)
+		}
 		return v, nil
 	}
 	return "", fmt.Errorf("required parameter %s not found", key)
