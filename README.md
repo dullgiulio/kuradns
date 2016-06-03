@@ -15,7 +15,7 @@ $ bat localhost:8080/dns/dump
 
 Adding a single entry:
 ```
-$ bat localhost:8080/source.add \
+$ bat localhost:8080/source/add \
 	source.name=entry0 \
 	source.type=static \
 	config.key=mydamin.local \
