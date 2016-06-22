@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -276,19 +277,73 @@ func (r repository) clone() repository {
 
 // WriteTo writes the repository contents in hosts format to w.
 func (r repository) WriteTo(w io.Writer) error {
+	frs := makeFlatRecords()
 	for key, rs := range r {
 		if len(rs.recs) == 0 {
 			continue
 		}
-		// TODO: Display IP not aliased target.
-		if _, err := fmt.Fprintf(w, "%s\t%s\n", rs.recs[0].target(), key); err != nil {
-			return err
+		grpKey := rs.recs[0].target()
+		for i := range rs.recs {
+			frs = append(frs, newFlatRecord(i, grpKey, rs.recs[i].target(), key))
 		}
-		for i := 1; i < len(rs.recs); i++ {
-			if _, err := fmt.Fprintf(w, "# %s\t%s\n", rs.recs[i].target(), key); err != nil {
-				return err
-			}
+	}
+	sort.Sort(frs)
+	for i := range frs {
+		fmtstr := "%s\t%s\n"
+		if frs[i].pos > 0 {
+			fmtstr = "# %s\t%s\n"
+		}
+		if _, err := fmt.Fprintf(w, fmtstr, frs[i].dst, frs[i].src); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+type flatRecord struct {
+	pos int
+	grp string
+	dst string
+	src string
+}
+
+type flatRecords []*flatRecord
+
+func makeFlatRecords() flatRecords {
+	return flatRecords(make([]*flatRecord, 0))
+}
+
+func newFlatRecord(i int, grp, dst, src string) *flatRecord {
+	return &flatRecord{i, grp, dst, src}
+}
+
+func (f flatRecords) Len() int {
+	return len(f)
+}
+
+func (f flatRecords) Swap(i, j int) {
+	f[i], f[j] = f[j], f[i]
+}
+
+func (f flatRecords) Less(i, j int) bool {
+	if f[i].dst < f[j].dst {
+		return true
+	}
+	if f[i].dst > f[j].dst {
+		return false
+	}
+	if f[i].grp < f[j].grp {
+		return true
+	}
+	if f[i].grp > f[j].grp {
+		return false
+	}
+	if f[i].pos < f[j].pos {
+		return true
+	}
+	if f[i].pos > f[j].pos {
+		return false
+	}
+	return f[i].src < f[j].src
+
 }
