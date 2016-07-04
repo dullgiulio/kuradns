@@ -10,7 +10,6 @@ import (
 	"log"
 	"net"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -115,24 +114,6 @@ func (r *records) clone() *records {
 		nr.recs[i] = r.recs[i]
 	}
 	return nr
-}
-
-// A host is a FQDN or common representation of a DNS address.
-type host string
-
-// browser returns the FQDN without the trailing dot.
-func (h host) browser() string {
-	return strings.TrimSuffix(string(h), ".")
-}
-
-// dns returns the FQDN.
-func (h host) dns() string {
-	return dns.Fqdn(string(h))
-}
-
-// hasSuffix returns true if h has suffix h2.
-func (h host) hasSuffix(h2 host) bool {
-	return strings.HasSuffix(h.browser(), h2.browser())
 }
 
 // A repository maps hosts to the records that can resolve them (record collection).
