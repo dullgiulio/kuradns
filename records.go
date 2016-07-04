@@ -238,13 +238,24 @@ func lookup(host string) (net.IP, error) {
 	return ip, err
 }
 
-// get returns the default record for host or nil if not found.
-func (r repository) get(host host) *record {
-	rs, ok := r[host.browser()]
-	if !ok {
-		return nil
+// get returns the default record for host hs or nil if not found.
+// host will also be matched against all wildcards; first matching wildcard entry is returned.
+func (r repository) get(hs host) *record {
+	rs, ok := r[hs.browser()]
+	if ok {
+		return &rs.recs[0]
 	}
-	return &rs.recs[0]
+	for k := range r {
+		khost := host(k)
+		if !khost.hasWildcard() {
+			continue
+		}
+		if khost.match(hs) {
+			rs = r[khost.browser()]
+			return &rs.recs[0]
+		}
+	}
+	return nil
 }
 
 // clone duplicates the whole repository.
