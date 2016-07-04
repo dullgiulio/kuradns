@@ -1,3 +1,5 @@
+# KuraDNS - DNS server with REST-ish interface
+
 ## Usage
 
 Using bat:
@@ -39,3 +41,16 @@ Might be necessary to listen to another port and redirect external traffic to th
 # iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 53 -j REDIRECT --to-port 8053
 ```
 
+## Wildcards
+
+Wildcards are supported as targets. Wildcards are flattened out, ignoring all DNS standards.
+
+For example "something.*.local" as target will be matched by "something.hello.local". Other allowed patterns are:
+```
+a*.
+*a.
+a*a.
+```
+
+Only one star is allowed but in any position or as a whole level of the DNS entry.
+Any level could be a wildcard but zone must be respected.
