@@ -24,6 +24,7 @@ func (h host) hasSuffix(h2 host) bool {
 	return strings.HasSuffix(h.browser(), h2.browser())
 }
 
+// hasWildcard returns true if h is a wildcard host.
 func (h host) hasWildcard() bool {
 	return countByte(string(h), '*') > 0
 }
@@ -45,6 +46,8 @@ func (h host) matchWildcard(h2 host) bool {
 }
 
 // match matches host h with host h2. Either can be a wildcard host.
+// If both hosts are wildcard, match will return true if they are the
+// exact same string.
 func (h host) match(h2 host) bool {
 	if h.hasWildcard() {
 		if h2.hasWildcard() {
@@ -58,6 +61,7 @@ func (h host) match(h2 host) bool {
 	return h == h2
 }
 
+// countByte returns the number of occurrences of b in s.
 func countByte(s string, b byte) int {
 	n := 0
 	for i := 0; i < len(s); i++ {
@@ -68,15 +72,17 @@ func countByte(s string, b byte) int {
 	return n
 }
 
+// matchWildcard matches wildcard string w against normal string s.
+// Wilcard string w can only contain one star but can contain suffix
+// or prefix.
 func matchWildcard(w, s string) bool {
 	hasWildcard := countByte(w, '*')
-	// XXX: We do not support matching against multiple wildcards.
-	// TODO: For now only?
-	if hasWildcard > 1 {
-		return false
-	}
 	if hasWildcard == 0 {
 		return w == s
+	}
+	// XXX: We do not support matching against multiple wildcards.
+	if hasWildcard > 1 {
+		return false
 	}
 	if w == "*" {
 		return true
