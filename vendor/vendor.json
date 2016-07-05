@@ -1,0 +1,19 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "AzOt34C4RJ42Vak7A+iME7luE6c=",
+			"path": "github.com/go-sql-driver/mysql",
+			"revision": "66312f7fe2678aa0f5ec770f96702f4c4ec5aa8e",
+			"revisionTime": "2016-03-10T23:28:42+01:00"
+		},
+		{
+			"checksumSHA1": "NfWcWtDGwbfX7+Vu7EeptSJYx1s=",
+			"path": "github.com/miekg/dns",
+			"revision": "d27455715200c7d3e321a1e5cadb27c9ee0b0f02",
+			"revisionTime": "2015-11-02T11:51:50Z"
+		}
+	],
+	"rootPath": "github.com/dullgiulio/kuradns"
+}
