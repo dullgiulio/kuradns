@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package kuradns
 
 import (
 	"fmt"
@@ -210,7 +210,7 @@ func (s *server) serveNetDNS(addr, net string, errCh chan<- error) {
 
 // serveDNS sets up responders to DNS queries on both TCP and UDP. It
 // logs the first error encountered and exists the program.
-func (s *server) serveDNS(addr string) {
+func (s *server) ServeDNS(addr string) {
 	errCh := make(chan error)
 
 	s.respPool.New = func() interface{} {

@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/dullgiulio/kuradns"
 )
 
 func main() {
@@ -30,9 +32,9 @@ func main() {
 	}
 	flag.Parse()
 
-	srv := newServer(*save, *info, *ttl, host(*zone), host(*hostname))
+	srv := kuradns.NewServer(*save, *zone, *hostname, *info, *ttl)
 
-	go srv.serveDNS(*dnsListen)
+	go srv.ServeDNS(*dnsListen)
 	log.Printf("[info] http: listening on %s", *httpListen)
 	log.Fatal(http.ListenAndServe(*httpListen, srv))
 }

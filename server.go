@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package kuradns
 
 import (
 	"encoding/json"
@@ -105,18 +105,18 @@ type server struct {
 	requests chan request
 }
 
-// newServer allocates a server instance. fname is the file where the session is restored
+// NewServer allocates a server instance. fname is the file where the session is restored
 // and subsequently persisted; verbose controls the logging level; ttl the duration to
 // apply to all DNS records served; self is the domain name of the local host.
-func newServer(fname string, verbose bool, ttl time.Duration, zone, self host) *server {
+func NewServer(fname, zone, self string, verbose bool, ttl time.Duration) *server {
 	s := &server{
 		fname:    fname,
-		zone:     zone,
-		self:     self,
+		zone:     host(zone),
+		self:     host(self),
 		ttl:      ttl,
 		verbose:  verbose,
 		requests: make(chan request, 10), // TODO: buffering is a param
-		soa:      newSoa(zone, self),
+		soa:      newSoa(host(zone), host(self)),
 		repo:     makeRepository(),
 		srcs:     makeSources(),
 	}
