@@ -292,6 +292,12 @@ func (r repository) WriteTo(w io.Writer) error {
 	return nil
 }
 
+// flatRecords are convenience data structure to simplify sorting of
+// all record entries.
+//
+// Each entry has a source and destination. As there can be multiple
+// shadowed entries for each source/destination pair, these are sorted
+// by pos and grouped together by having the same grp.
 type flatRecord struct {
 	pos int
 	grp string
@@ -299,24 +305,30 @@ type flatRecord struct {
 	src string
 }
 
+// flatRecords is a sortable slice of flatRecord elements.
 type flatRecords []*flatRecord
 
+// makeFlatRecords allocates an empty slice of flatRecords
 func makeFlatRecords() flatRecords {
 	return flatRecords(make([]*flatRecord, 0))
 }
 
+// newFlatRecord allocates a flatRecord
 func newFlatRecord(i int, grp, dst, src string) *flatRecord {
 	return &flatRecord{i, grp, dst, src}
 }
 
+// Len to implement Sort interface
 func (f flatRecords) Len() int {
 	return len(f)
 }
 
+// Swap to implement Sort interface
 func (f flatRecords) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
 }
 
+// Less orders by destination dst, position pos and source src, grouping by group grp/
 func (f flatRecords) Less(i, j int) bool {
 	if f[i].dst < f[j].dst {
 		return true
