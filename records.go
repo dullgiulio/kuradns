@@ -24,25 +24,39 @@ import (
 type record struct {
 	shost, dhost host
 	a            dns.RR
+	aaaa         dns.RR
 	cname        dns.RR
 	source       *source
 }
 
 // Allocate a new record. For the A record, a resoled IP is needed.
-func makeRecord(shost, dhost host, cname bool, ip net.IP, ttl time.Duration, src *source) record {
+func makeRecord(shost, dhost host, cname bool, ip4, ip6 net.IP, ttl time.Duration, src *source) record {
 	r := record{
-		shost: shost,
-		dhost: dhost,
-		a: &dns.A{
+		shost:  shost,
+		dhost:  dhost,
+		source: src,
+	}
+	if ip4 != nil {
+		r.a = &dns.A{
 			Hdr: dns.RR_Header{
 				Name:   shost.dns(),
 				Rrtype: dns.TypeA,
 				Class:  dns.ClassINET,
 				Ttl:    uint32(ttl.Seconds()),
 			},
-			A: ip,
-		},
-		source: src,
+			A: ip4,
+		}
+	}
+	if ip6 != nil {
+		r.aaaa = &dns.AAAA{
+			Hdr: dns.RR_Header{
+				Name:   shost.dns(),
+				Rrtype: dns.TypeA,
+				Class:  dns.ClassINET,
+				Ttl:    uint32(ttl.Seconds()),
+			},
+			AAAA: ip6,
+		}
 	}
 	if cname {
 		r.cname = &dns.CNAME{
@@ -212,30 +226,48 @@ func newResolver(src *source, ttl time.Duration, workers int) *resolver {
 func (r *resolver) run() {
 	for rentry := range r.rentries {
 		var cname bool
+		var ip4, ip6 net.IP
 		ip := net.ParseIP(rentry.Target)
-		if ip == nil {
+		if ip != nil {
+			if ip.To4() == nil {
+				ip6 = ip
+			} else {
+				ip4 = ip
+			}
+		} else {
 			var err error
 			// It's an hostname: resolve it and make both A and CNAME records
-			ip, err = lookup(rentry.Target)
+			ip4, ip6, err = lookup(rentry.Target)
 			if err != nil {
 				log.Printf("[error] repository: failed lookup of %s: %s", rentry.Target, err)
 				continue
 			}
 			cname = true
 		}
-		r.records <- makeRecord(host(rentry.Source), host(rentry.Target), cname, ip, r.ttl, r.src)
+		r.records <- makeRecord(host(rentry.Source), host(rentry.Target), cname, ip4, ip6, r.ttl, r.src)
 	}
 	r.wg.Done()
 }
 
 // lookup is a utility to lookup an IP for host (standard format).
-func lookup(host string) (net.IP, error) {
-	var ip net.IP
-	iplist, err := net.LookupIP(host)
-	if err == nil {
-		ip = iplist[0]
+func lookup(host string) (ip4, ip6 net.IP, err error) {
+	var iplist []net.IP
+	iplist, err = net.LookupIP(host)
+	if err != nil {
+		return
 	}
-	return ip, err
+	for _, ip := range iplist {
+		if len(ip) == net.IPv4len {
+			if ip4 == nil {
+				ip4 = ip
+			}
+			continue
+		}
+		if ip6 == nil {
+			ip6 = ip
+		}
+	}
+	return
 }
 
 // get returns the default record for host hs or nil if not found.

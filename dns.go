@@ -70,7 +70,7 @@ func (s *server) newDnsRR(name host) dns.RR {
 	}
 }
 
-// handleDnsA modifies m to reply to a A/AAA/ANY query by looking up name from the
+// handleDnsA modifies m to reply to a A/ANY query by looking up name from the
 // repository. NXDOMAIN and the SOA record are returned for nonexisting entries.
 func (s *server) handleDnsA(name host, m *dns.Msg) {
 	s.mux.RLock()
@@ -78,9 +78,29 @@ func (s *server) handleDnsA(name host, m *dns.Msg) {
 
 	// Important: all things set here must be overwritten
 	rec := s.repo.get(name)
-	if rec != nil {
+	if rec != nil && rec.a != nil {
 		m.Answer = make([]dns.RR, 1)
 		m.Answer[0] = rec.a
+		m.Ns = nil
+		m.MsgHdr.Rcode = dns.RcodeSuccess
+	} else {
+		m.Answer = nil
+		m.MsgHdr.Rcode = dns.RcodeNameError
+		s.soa.write(m)
+	}
+}
+
+// handleDnsAAAA modifies m to reply to a AAAA query by looking up name from the
+// repository. NXDOMAIN and the SOA record are returned for nonexisting entries.
+func (s *server) handleDnsAAAA(name host, m *dns.Msg) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+
+	// Important: all things set here must be overwritten
+	rec := s.repo.get(name)
+	if rec != nil && rec.aaaa != nil {
+		m.Answer = make([]dns.RR, 1)
+		m.Answer[0] = rec.aaaa
 		m.Ns = nil
 		m.MsgHdr.Rcode = dns.RcodeSuccess
 	} else {
@@ -151,13 +171,17 @@ func (s *server) handleQuery(w dns.ResponseWriter, r *dns.Msg) {
 	switch r.Question[0].Qtype {
 	case dns.TypeANY, dns.TypeA, dns.TypeAAAA:
 		if s.verbose {
-			s.logDns(w, "info", "request for A/ANY %s", r.Question[0].Name)
+			s.logDns(w, "info", "request for %s %s", dns.TypeToString[r.Question[0].Qtype], r.Question[0].Name)
 		}
 
 		m := s.respPool.Get().(*dns.Msg)
 
 		m.SetReply(r)
-		s.handleDnsA(host(r.Question[0].Name), m)
+		if r.Question[0].Qtype == dns.TypeAAAA {
+			s.handleDnsAAAA(host(r.Question[0].Name), m)
+		} else {
+			s.handleDnsA(host(r.Question[0].Name), m)
+		}
 		s.writeDnsMsg(w, m)
 
 		s.respPool.Put(m)
