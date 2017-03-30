@@ -12,7 +12,7 @@ import (
 
 // staticgen is a generator that yealds a single static entry
 type staticgen struct {
-	ch chan RawEntry
+	ch chan *RawEntry
 }
 
 func newStaticgen(c *cfg.Config) (*staticgen, error) {
@@ -25,17 +25,17 @@ func newStaticgen(c *cfg.Config) (*staticgen, error) {
 		return nil, errors.New("val not specified")
 	}
 	s := &staticgen{
-		ch: make(chan RawEntry),
+		ch: make(chan *RawEntry),
 	}
 	go s.run(key, val)
 	return s, nil
 }
 
 func (s *staticgen) run(key, val string) {
-	s.ch <- MakeRawEntry(key, val)
+	s.ch <- NewRawEntry(key, val)
 	close(s.ch)
 }
 
-func (s *staticgen) Generate() RawEntry {
-	return <-s.ch
+func (s *staticgen) Generate() (*RawEntry, error) {
+	return <-s.ch, nil
 }

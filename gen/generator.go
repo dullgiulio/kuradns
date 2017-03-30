@@ -13,7 +13,7 @@ import (
 type Generator interface {
 	// generate reuturns an entry between a hostname its destination IP/hostname.
 	// When no more pairs are available, generate should return an empty rawentry
-	Generate() RawEntry
+	Generate() (*RawEntry, error)
 }
 
 var ErrInvalidGenerator = errors.New("invalid generator name")

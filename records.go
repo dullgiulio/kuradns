@@ -29,9 +29,9 @@ type record struct {
 	source       *source
 }
 
-// Allocate a new record. For the A record, a resoled IP is needed.
-func makeRecord(shost, dhost host, cname bool, ip4, ip6 net.IP, ttl time.Duration, src *source) record {
-	r := record{
+// Allocate a new record. For the A record, a resolved IP is needed.
+func newRecord(shost, dhost host, cname bool, ip4, ip6 net.IP, ttl time.Duration, src *source) *record {
+	r := &record{
 		shost:  shost,
 		dhost:  dhost,
 		source: src,
@@ -115,8 +115,8 @@ func (r *records) deleteSource(s *source) int {
 }
 
 // pushFront adds a record to the collection.
-func (r *records) pushFront(rec record) {
-	r.recs = append([]record{rec}, r.recs...)
+func (r *records) pushFront(rec *record) {
+	r.recs = append([]record{*rec}, r.recs...)
 }
 
 // clone is the utility function to duplicate a collection.
@@ -140,7 +140,7 @@ func makeRepository() repository {
 }
 
 // add inserts record rec for host as the default record.
-func (r repository) add(host host, rec record) {
+func (r repository) add(host host, rec *record) {
 	key := host.browser()
 	recs, ok := r[key]
 	if !ok {
@@ -168,11 +168,17 @@ func (r repository) deleteSource(s *source) {
 // updateSource removes and generate again all records for source src.
 func (r repository) updateSource(src *source, zone host, ttl time.Duration) {
 	res := newResolver(src, ttl, 6)
+	errch := make(chan error)
 
 	go func() {
+		defer close(errch)
 		for {
-			rentry := src.gen.Generate()
-			if rentry.IsEmpty() {
+			rentry, err := src.gen.Generate()
+			if err != nil {
+				log.Printf("[error] generator: cannot generate repository entries: %s", err)
+				errch <- err // Single write chan, will exit after
+			}
+			if err != nil || rentry == nil {
 				close(res.rentries)
 				// Free up resources used by the generator
 				src.gen = nil
@@ -187,8 +193,23 @@ func (r repository) updateSource(src *source, zone host, ttl time.Duration) {
 		}
 	}()
 
-	for rec := range res.records {
-		r.add(rec.shost, rec)
+	recs := res.records
+
+	for {
+		select {
+		case rec := <-recs:
+			if rec == nil {
+				recs = nil
+			} else {
+				r.add(rec.shost, rec)
+			}
+		case err := <-errch:
+			src.err = err
+			errch = nil
+		}
+		if recs == nil && errch == nil {
+			break
+		}
 	}
 }
 
@@ -197,8 +218,8 @@ type resolver struct {
 	cname    bool
 	src      *source
 	ttl      time.Duration
-	rentries chan gen.RawEntry
-	records  chan record
+	rentries chan *gen.RawEntry
+	records  chan *record
 	wg       sync.WaitGroup
 }
 
@@ -208,8 +229,8 @@ func newResolver(src *source, ttl time.Duration, workers int) *resolver {
 	r := &resolver{
 		src:      src,
 		ttl:      ttl,
-		rentries: make(chan gen.RawEntry),
-		records:  make(chan record),
+		rentries: make(chan *gen.RawEntry),
+		records:  make(chan *record),
 	}
 	r.wg.Add(workers)
 	for i := 0; i < workers; i++ {
@@ -244,7 +265,7 @@ func (r *resolver) run() {
 			}
 			cname = true
 		}
-		r.records <- makeRecord(host(rentry.Source), host(rentry.Target), cname, ip4, ip6, r.ttl, r.src)
+		r.records <- newRecord(host(rentry.Source), host(rentry.Target), cname, ip4, ip6, r.ttl, r.src)
 	}
 	r.wg.Done()
 }

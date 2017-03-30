@@ -136,7 +136,6 @@ func (s *server) parseBodyData(w http.ResponseWriter, r *http.Request) (*cfg.Con
 }
 
 func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
-	var err error
 	conf, err := s.parseBodyData(w, r)
 	if err != nil {
 		return err
@@ -146,23 +145,26 @@ func (s *server) httpHandlePOST(w http.ResponseWriter, r *http.Request) error {
 
 	switch r.URL.Path {
 	case "/source/add":
-		sname, err := s.getFromConf(conf, "source.name")
+		var sname, stype string
+		sname, err = s.getFromConf(conf, "source.name")
 		if err != nil {
 			return err
 		}
-		stype, err := s.getFromConf(conf, "source.type")
+		stype, err = s.getFromConf(conf, "source.type")
 		if err != nil {
 			return err
 		}
 		err = s.handleSourceAdd(sname, stype, conf)
 	case "/source/delete":
-		sname, err := s.getFromConf(conf, "source.name")
+		var sname string
+		sname, err = s.getFromConf(conf, "source.name")
 		if err != nil {
 			return err
 		}
 		err = s.handleSourceDelete(sname)
 	case "/source/update":
-		sname, err := s.getFromConf(conf, "source.name")
+		var sname string
+		sname, err = s.getFromConf(conf, "source.name")
 		if err != nil {
 			return err
 		}

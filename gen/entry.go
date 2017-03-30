@@ -10,16 +10,11 @@ type RawEntry struct {
 }
 
 // MakeRawEntry allocates a raw entry for source s and target t.
-func MakeRawEntry(s, t string) RawEntry {
-	return RawEntry{s, t}
+func NewRawEntry(s, t string) *RawEntry {
+	return &RawEntry{s, t}
 }
 
 // EmptyRawEntry allocates an empty raw entry.
-func EmptyRawEntry() RawEntry {
-	return RawEntry{}
-}
-
-// IsEmpty checks whether an entry is empty.
-func (r RawEntry) IsEmpty() bool {
-	return r.Source == "" || r.Target == ""
+func EmptyRawEntry() *RawEntry {
+	return &RawEntry{}
 }

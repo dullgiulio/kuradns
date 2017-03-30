@@ -13,14 +13,14 @@ import (
 
 // dategen is a generator that yields entries containing the date. Used for testing.
 type dategen struct {
-	ch   chan RawEntry
+	ch   chan *RawEntry
 	date string
 	zone string
 }
 
 func newDategen(c *cfg.Config) *dategen {
 	d := &dategen{
-		ch:   make(chan RawEntry),
+		ch:   make(chan *RawEntry),
 		date: time.Now().UTC().Format("20060102150405"),
 		zone: c.GetVal("dns.zone", "lan"),
 	}
@@ -29,10 +29,10 @@ func newDategen(c *cfg.Config) *dategen {
 }
 
 func (d *dategen) run() {
-	d.ch <- MakeRawEntry(fmt.Sprintf("%s.%s", d.date, d.zone), "127.0.0.1")
+	d.ch <- NewRawEntry(fmt.Sprintf("%s.%s", d.date, d.zone), "127.0.0.1")
 	close(d.ch)
 }
 
-func (d *dategen) Generate() RawEntry {
-	return <-d.ch
+func (d *dategen) Generate() (*RawEntry, error) {
+	return <-d.ch, nil
 }

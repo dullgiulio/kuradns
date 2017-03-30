@@ -259,6 +259,7 @@ func (s *server) run() {
 			repo := s.cloneRepo()
 			repo.deleteSource(src)
 			if err := src.initGenerator(); err != nil {
+				src.err = err
 				req.fail(err)
 				log.Printf("[error] sources: %s", err)
 				continue

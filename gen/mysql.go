@@ -16,25 +16,26 @@ import (
 )
 
 type mysql struct {
-	ch   chan RawEntry
-	rows *sql.Rows
+	ch    chan *RawEntry
+	errch chan error
+	rows  *sql.Rows
 }
 
 func newMysql(c *cfg.Config) (*mysql, error) {
 	usr, ok := c.Get("config.user")
-	if !ok {
+	if !ok || usr == "" {
 		return nil, errors.New("mysql user not specified")
 	}
 	pwd, ok := c.Get("config.password")
-	if !ok {
+	if !ok || pwd == "" {
 		return nil, errors.New("mysql password not specified")
 	}
 	dbname, ok := c.Get("config.database")
-	if !ok {
+	if !ok || dbname == "" {
 		return nil, errors.New("mysql database name not specified")
 	}
 	query, ok := c.Get("config.query")
-	if !ok {
+	if !ok || query == "" {
 		return nil, errors.New("mysql query not specified")
 	}
 	host := c.GetVal("config.host", "localhost")
@@ -49,8 +50,9 @@ func newMysql(c *cfg.Config) (*mysql, error) {
 		return nil, fmt.Errorf("failed to execute query on mysql[%s]: %s", dsn, err)
 	}
 	m := &mysql{
-		ch:   make(chan RawEntry, 100),
-		rows: rows,
+		ch:    make(chan *RawEntry, 100),
+		errch: make(chan error),
+		rows:  rows,
 	}
 	// rows is closed in run()
 	go func() {
@@ -61,11 +63,11 @@ func newMysql(c *cfg.Config) (*mysql, error) {
 }
 
 func (m *mysql) run() {
-	entry := MakeRawEntry("", "")
 	defer m.rows.Close()
 	for m.rows.Next() {
+		entry := NewRawEntry("", "")
 		if err := m.rows.Scan(&entry.Source, &entry.Target); err != nil {
-			log.Printf("[dns] mysql: error reading rows: %s", err)
+			m.errch <- fmt.Errorf("mysql: error reading rows: %s", err)
 			continue
 		}
 		if entry.Source == "" && entry.Target == "" {
@@ -77,6 +79,11 @@ func (m *mysql) run() {
 	close(m.ch)
 }
 
-func (m *mysql) Generate() RawEntry {
-	return <-m.ch
+func (m *mysql) Generate() (*RawEntry, error) {
+	select {
+	case re := <-m.ch:
+		return re, nil
+	case err := <-m.errch:
+		return nil, err
+	}
 }
