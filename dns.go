@@ -152,7 +152,7 @@ func (s *server) handleDnsMX(name host, m *dns.Msg) {
 }
 
 // logDns is an utility to write a log message as coming from the DNS subsystem.
-func (server) logDns(w dns.ResponseWriter, level, format string, params ...interface{}) {
+func (*server) logDns(w dns.ResponseWriter, level, format string, params ...interface{}) {
 	log.Printf("[%s] dns: %s(%s): %s", level, w.RemoteAddr().Network(), w.RemoteAddr().String(), fmt.Sprintf(format, params...))
 }
 

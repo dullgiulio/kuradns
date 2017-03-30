@@ -24,7 +24,7 @@ func TestMatchWildcardString(t *testing.T) {
 		{"a*ab", "aabab", true},
 	} {
 		if res := matchWildcard(p.a, p.b); res != p.res {
-			t.Errorf("'%s' == '%s' should be %s but was %s", p.a, p.b, p.res, res)
+			t.Errorf("'%s' == '%s' should be %t but was %t", p.a, p.b, p.res, res)
 		}
 	}
 }
@@ -46,7 +46,7 @@ func TestMatchWildcardHost(t *testing.T) {
 		{"*a.test.*l", "ba.test.bl", true},
 	} {
 		if res := host(p.a).match(host(p.b)); res != p.res {
-			t.Errorf("'%s' == '%s' should be %s but was %s", p.a, p.b, p.res, res)
+			t.Errorf("'%s' == '%s' should be %t but was %t", p.a, p.b, p.res, res)
 		}
 	}
 }

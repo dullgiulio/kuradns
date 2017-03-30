@@ -321,7 +321,8 @@ func (r repository) clone() repository {
 }
 
 // WriteTo writes the repository contents in hosts format to w.
-func (r repository) WriteTo(w io.Writer) error {
+func (r repository) WriteTo(w io.Writer) (int64, error) {
+	var n int64
 	frs := makeFlatRecords()
 	for key, rs := range r {
 		if len(rs.recs) == 0 {
@@ -338,11 +339,13 @@ func (r repository) WriteTo(w io.Writer) error {
 		if frs[i].pos > 0 {
 			fmtstr = "# %s\t%s\n"
 		}
-		if _, err := fmt.Fprintf(w, fmtstr, frs[i].dst, frs[i].src); err != nil {
-			return err
+		m, err := fmt.Fprintf(w, fmtstr, frs[i].dst, frs[i].src)
+		if err != nil {
+			return n+int64(m), err
 		}
+		n += int64(m)
 	}
-	return nil
+	return 0, nil
 }
 
 // flatRecords are convenience data structure to simplify sorting of

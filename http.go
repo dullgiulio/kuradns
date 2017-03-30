@@ -74,7 +74,7 @@ func (s *server) handleDnsDump(w http.ResponseWriter, r *http.Request) error {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 
-	if err := s.repo.WriteTo(wb); err != nil {
+	if _, err := s.repo.WriteTo(wb); err != nil {
 		return err
 	}
 
