@@ -202,6 +202,10 @@ func (s *server) persistSources() {
 		log.Printf("cannot persist sources: %s", err)
 		return
 	}
+	if err != f.Sync(); err != nil {
+		log.Printf("cannot flush file: %s", err)
+		return
+	}
 }
 
 // cloneRepo safely creates and returns a full copy of the current repository.
